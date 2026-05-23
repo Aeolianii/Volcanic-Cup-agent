@@ -541,13 +541,17 @@ function mergeSuggestedActions(
   lastAction?: GMActionContext
 ): GMNarrativeOutput["suggested_actions"] {
   const usedKey = lastAction ? actionKey(lastAction.action_type, lastAction.target, lastAction.method, lastAction.intent) : "";
+  const usedLabel = normalizeActionLabel(lastAction?.raw_input || lastAction?.action_label || "");
   const seen = new Set<string>();
+  const seenLabels = new Set<string>();
   const merged: GMNarrativeOutput["suggested_actions"] = [];
 
   for (const action of [...primary, ...secondary]) {
     const key = actionKey(action.action_type, action.target, action.method, action.intent);
-    if (key === usedKey || seen.has(key)) continue;
+    const label = normalizeActionLabel(action.label);
+    if (key === usedKey || label === usedLabel || seen.has(key) || seenLabels.has(label)) continue;
     seen.add(key);
+    seenLabels.add(label);
     merged.push(action);
   }
 
@@ -556,6 +560,10 @@ function mergeSuggestedActions(
 
 function actionKey(actionType: string, target: string, method: string, intent: string): string {
   return [actionType, target, method, intent].map((value) => String(value || "").toLowerCase()).join("|");
+}
+
+function normalizeActionLabel(label: string): string {
+  return String(label || "").replace(/[“”"'\s]/g, "").toLowerCase();
 }
 
 function buildFollowUpActions(

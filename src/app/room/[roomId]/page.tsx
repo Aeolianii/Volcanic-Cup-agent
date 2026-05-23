@@ -158,6 +158,14 @@ export default function RoomPage() {
     }
   };
 
+  const replaceSuggestedActions = useCallback((actions: SuggestedAction[]) => {
+    if (!state.playerView) return;
+    dispatch({
+      type: "SET_PLAYER_VIEW",
+      view: { ...state.playerView, suggested_actions: actions },
+    });
+  }, [state.playerView]);
+
   // Send chat message
   const handleSendMessage = useCallback(
     async (content: string) => {
@@ -194,6 +202,7 @@ export default function RoomPage() {
     async (actionText: string) => {
       if (actionPending) return;
 
+      const previousActions = state.playerView?.suggested_actions || [];
       setActionPending(true);
       setPendingActionId("free_action");
       setActionFeedback(`已提交行动：“${actionText}”。正在解析与结算...`);
@@ -227,12 +236,7 @@ export default function RoomPage() {
             dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
           }
           const nextSuggestedActions = normalizeSuggestedActions(data.suggested_actions);
-          if (nextSuggestedActions.length > 0 && state.playerView) {
-            dispatch({
-              type: "SET_PLAYER_VIEW",
-              view: { ...state.playerView, suggested_actions: nextSuggestedActions },
-            });
-          }
+          replaceSuggestedActions(nextSuggestedActions);
 
           setActionFeedback("行动已结算，结果已写入 GM 叙事。");
 
@@ -244,7 +248,7 @@ export default function RoomPage() {
           }
 
           // Refresh view
-          await refreshPlayerView(nextSuggestedActions.length > 0 ? nextSuggestedActions : undefined);
+          await refreshPlayerView(nextSuggestedActions);
 
           // Auto NPC turn
           try {
@@ -253,16 +257,18 @@ export default function RoomPage() {
             // NPC turn is optional
           }
         } else {
+          replaceSuggestedActions(previousActions);
           setActionFeedback("行动失败：" + (data.error || "未知错误"));
         }
       } catch {
+        replaceSuggestedActions(previousActions);
         setActionFeedback("网络错误，行动没有成功提交。");
       } finally {
         setActionPending(false);
         setPendingActionId(null);
       }
     },
-    [actionPending, roomId, playerId, state.playerView]
+    [actionPending, roomId, playerId, state.playerView, replaceSuggestedActions]
   );
 
   // Handle suggested action
@@ -279,6 +285,8 @@ export default function RoomPage() {
     }) => {
       if (actionPending) return;
 
+      const previousActions = state.playerView?.suggested_actions || [];
+      replaceSuggestedActions(previousActions.filter((item) => item.id !== action.id));
       setActionPending(true);
       setPendingActionId(action.id);
       setActionFeedback(`已选择推荐行动：“${action.label}”。正在结算...`);
@@ -315,12 +323,7 @@ export default function RoomPage() {
             dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
           }
           const nextSuggestedActions = normalizeSuggestedActions(data.suggested_actions);
-          if (nextSuggestedActions.length > 0 && state.playerView) {
-            dispatch({
-              type: "SET_PLAYER_VIEW",
-              view: { ...state.playerView, suggested_actions: nextSuggestedActions },
-            });
-          }
+          replaceSuggestedActions(nextSuggestedActions);
           setActionFeedback("行动已结算，结果已写入 GM 叙事。");
 
           if (data.ending) {
@@ -329,7 +332,7 @@ export default function RoomPage() {
             return;
           }
 
-          await refreshPlayerView(nextSuggestedActions.length > 0 ? nextSuggestedActions : undefined);
+          await refreshPlayerView(nextSuggestedActions);
         } else {
           setActionFeedback("行动失败：" + (data.error || "未知错误"));
         }
@@ -340,7 +343,7 @@ export default function RoomPage() {
         setPendingActionId(null);
       }
     },
-    [actionPending, roomId, playerId, state.playerView]
+    [actionPending, roomId, playerId, state.playerView, replaceSuggestedActions]
   );
 
   const handleConvertToAction = useCallback(

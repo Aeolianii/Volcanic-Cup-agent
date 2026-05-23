@@ -1,44 +1,45 @@
-# Changelog
+# 更新日志
 
 ## v1.2 - 2026-05-24
 
-### Story Bible and Generation
+### Story Bible 与故事生成
 
-- Reworked story analysis and adaptation so generated events, roles, factions, abilities, and UI panels follow the imported story premise instead of falling back to rigid genre templates.
-- Improved Story Bible generation and validation to catch missing goals, invalid NPC knowledge scope, unsupported widgets, thin ending sets, and unsafe story access.
-- Added stronger demo/mock generation paths while keeping imported-story behavior explicit when AI generation fails.
+- 重构故事分析与适配逻辑，让事件、角色、阵营、能力和 UI 面板更贴合玩家输入的故事设定，减少硬套固定题材模板的问题。
+- 强化 Story Bible 生成与校验，检查角色目标、NPC 知识范围、Widget 配置、结局数量和不安全的完整故事访问权限。
+- 改进 Demo 与 Mock 生成路径：Demo 可以保留可玩兜底，导入故事在 AI 失败时明确提示未生成，不用模板剧情冒充真实生成。
 
-### AI GM, Rule Engine, and World State
+### AI GM、Rule Engine 与 World State
 
-- Routed player action results into AI GM context so the central narration reflects the selected action, rule result, world state changes, triggered events, and newly revealed information.
-- Prevented AI GM and NPC output from leaking internal IDs such as event IDs, target aliases, metric keys, and player IDs into player-facing text.
-- Added action target normalization for NPCs, roles, events, current locations, and connected locations before rule settlement.
-- Improved social, investigation, self-reflection, clue, metric, relationship, and event settlement so actions produce concrete consequences rather than only generic success messages.
-- Preserved the rule that all world changes pass through the Rule Engine; AI GM only returns narration, suggested events, revealed information, and suggested actions.
+- 将玩家行动结果传入 AI GM 上下文，使中间叙事框能结合行动、规则结算、World State、触发事件和新增情报生成具体反馈。
+- 修复玩家可见文本中的内部 ID 泄露问题，包括事件 ID、目标别名、指标 key、玩家 ID 等。
+- 在规则结算前统一规范行动目标，支持 NPC、角色、事件、当前位置和关联地点等目标别名。
+- 改进社交、调查、自我梳理、线索、指标、关系和事件结算，让行动产生更具体的结果，而不是只显示“成功/失败”。
+- 保持核心约束：所有世界状态变化都必须经过 Rule Engine，AI GM 只负责叙事、建议事件、揭示信息和推荐行动。
 
-### Interaction Flow and Latency
+### 玩家交互与结算速度
 
-- Added immediate pending feedback for suggested actions and free actions so players can see that an action is being processed.
-- Updated suggested actions after every settlement and filtered out the just-used action so the next choices reflect the latest World State.
-- Optimized action settlement latency by running ending checks and GM narration in parallel after the state is settled.
-- Added parallel high-token AI narration requests for post-action GM output and accepted the first valid JSON response without reducing prompt quality.
-- Reduced demo fallback wait time while keeping imported stories strict: demo can use playable fallback narration, imported stories clearly report when AI narration was not generated.
+- 推荐行动和自由行动提交后增加即时 pending 反馈，让玩家明确知道点击已经生效。
+- 行动结算后根据最新 World State 刷新推荐行动，并过滤掉刚刚使用过的旧行动。
+- 修复推荐行动列表不实时更新的问题：点击后立即从 UI 移除旧行动，结算完成后用新推荐替换；提交失败时恢复原列表。
+- 优化行动结算链路：World State 更新后并行执行结局判断和 GM 叙事生成，减少串行等待。
+- 行动后的 GM 叙事采用并发高 token AI 请求，优先使用第一个合法 JSON 结果，在不降低文本质量的前提下降低等待时间。
+- Demo 的兜底等待时间缩短；导入故事仍保持严格策略，AI 失败时明确显示未生成。
 
-### Player-Facing UI
+### 玩家界面
 
-- Fixed the GM sender label so it no longer appears as a mistranslated vehicle-related label.
-- Made known facts expandable so all player-visible facts can be reviewed instead of hiding the extra facts behind an inaccessible count.
-- Improved action panels, free action input, and UI builder state handling for disabled, pending, and updated suggestions.
-- Cleaned player-facing evidence, facts, role information, and narrative text so they show readable story terms rather than raw engine parameters.
+- 修复 GM 名称被错误显示为“通用汽车”的问题。
+- 已知事实支持展开查看，避免“还有 N 条”但无法查看完整情报。
+- 改进行动面板、自由行动输入框和 UI Builder 的禁用、处理中、推荐刷新状态。
+- 清理证据、已知事实、角色信息和叙事文本中的内部参数，让玩家看到的是故事语言。
 
-### Demo: Lost Holy Grail Night
+### Demo：失落圣杯之夜
 
-- Improved the demo loop for creating a room, selecting a role, starting the story, submitting recommended/free actions, receiving GM narration, refreshing suggestions, triggering events, and checking endings.
-- Added more concrete feedback for repeated conversations with NPCs such as the Archmage, including actionable clues and follow-up directions.
-- Kept demo fallback narration available for playability, while avoiding that fallback for imported custom stories.
+- 打通 Demo 闭环：创建房间、选择角色、开始故事、提交推荐/自由行动、GM 叙事、推荐行动刷新、事件触发和结局判断。
+- 强化与大法师等 NPC 交谈后的反馈，让重复对话也能产生可用线索和后续行动方向。
+- Demo 允许使用可玩兜底叙事；导入的自定义故事不会用兜底模板替代 AI 生成。
 
-### Validation
+### 验证
 
-- Built successfully with `npm run build`.
-- Restarted and tested the local server at `http://localhost:3000`.
-- Verified a demo recommended action round-trip through action parsing, rule settlement, GM narration, and suggested-action refresh.
+- 已通过 `npm run build`。
+- 已在本地 `http://localhost:3000` 重启并测试。
+- 已验证 Demo 推荐行动可以完成行动解析、规则结算、GM 叙事和推荐行动刷新。
