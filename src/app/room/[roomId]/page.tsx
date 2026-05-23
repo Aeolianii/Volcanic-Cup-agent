@@ -334,9 +334,11 @@ export default function RoomPage() {
 
           await refreshPlayerView(nextSuggestedActions);
         } else {
+          replaceSuggestedActions(previousActions);
           setActionFeedback("行动失败：" + (data.error || "未知错误"));
         }
       } catch {
+        replaceSuggestedActions(previousActions);
         setActionFeedback("网络错误，行动没有成功提交。");
       } finally {
         setActionPending(false);

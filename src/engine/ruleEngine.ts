@@ -7,6 +7,7 @@ import type {
   WorldState,
   StoryBible,
   ActionProposal,
+  getActionCategory,
 } from "@/types";
 
 /**
@@ -43,10 +44,12 @@ export function processPlayerAction(
 
   // 4. Generate state updates based on action
   if (success) {
-    generateSuccessUpdates(action, updates, bible);
+    generateSuccessUpdates(action, updates, bible, state);
   } else {
     generateFailureUpdates(action, updates, bible, state);
   }
+
+  rotateActionAdvantage(action, updates, state, success);
 
   // 5. Build result
   const publicResult = buildPublicResult(action, success, bible, state);
@@ -130,7 +133,7 @@ function checkPermission(
 
 function calculateRoll(
   action: StructuredAction,
-  _state: WorldState,
+  state: WorldState,
   _bible: StoryBible
 ): RollResult {
   const dice = Math.floor(Math.random() * 100) + 1;
@@ -140,16 +143,29 @@ function calculateRoll(
   let threshold = 50;
   switch (action.risk_level) {
     case "low":
-      threshold = 30;
-      modifiers.push({ source: "risk", value: 10, reason: "低风险行动" });
+      threshold = 20;
+      modifiers.push({ source: "risk", value: 15, reason: "低风险行动" });
       break;
     case "medium":
-      threshold = 50;
+      threshold = 40;
+      modifiers.push({ source: "risk", value: 5, reason: "中风险行动准备较充分" });
       break;
     case "high":
-      threshold = 70;
-      modifiers.push({ source: "risk", value: -10, reason: "高风险行动" });
+      threshold = 60;
+      modifiers.push({ source: "risk", value: -5, reason: "高风险行动" });
       break;
+  }
+
+  const actorPrefix = `adv_${action.actor_id}_`;
+  const category = getActionCategory(action.action_type);
+  if (state.flags[`${actorPrefix}momentum`]) {
+    modifiers.push({ source: "advantage", value: 15, reason: "承接上一行动的有利条件" });
+  }
+  if (state.flags[`${actorPrefix}target_${safeFlagPart(action.target)}`]) {
+    modifiers.push({ source: "advantage", value: 20, reason: "上一行动已经锁定相关目标" });
+  }
+  if (state.flags[`${actorPrefix}category_${category}`]) {
+    modifiers.push({ source: "advantage", value: 15, reason: "上一行动积累了相关线索" });
   }
 
   return { dice, threshold, modifiers };
@@ -158,7 +174,8 @@ function calculateRoll(
 function generateSuccessUpdates(
   action: StructuredAction,
   updates: StateUpdate[],
-  bible: StoryBible
+  bible: StoryBible,
+  state: WorldState
 ): void {
   if (isReflectAction(action)) {
     updates.push({
@@ -166,18 +183,19 @@ function generateSuccessUpdates(
       target: action.actor_id,
       fact_id: "你重新梳理了自己的公开目标、秘密目标与当前局势，明确了下一步行动优先级。",
     });
-    return;
   }
 
   // Add knowledge based on action
-  updates.push({
-    type: "add_known_fact",
-    target: action.actor_id,
-    fact_id: buildActionFact(action, bible),
-  });
+  if (!isReflectAction(action)) {
+    updates.push({
+      type: "add_known_fact",
+      target: action.actor_id,
+      fact_id: buildActionFact(action, bible),
+    });
+  }
 
   // Investigation actions yield evidence
-  if (["investigate", "search", "track", "eavesdrop", "interrogate", "decode"].includes(action.action_type)) {
+  if (!isReflectAction(action) && ["investigate", "search", "track", "eavesdrop", "interrogate", "decode"].includes(action.action_type)) {
     updates.push({
       type: "add_evidence",
       target: action.actor_id,
@@ -186,7 +204,16 @@ function generateSuccessUpdates(
     updates.push({
       type: "metric_change",
       metric: "truth_progress",
-      delta: 10,
+      delta: truthDeltaForAction(action),
+    });
+  }
+
+  if (["talk", "persuade", "interrogate", "deceive"].includes(action.action_type)) {
+    const npc = bible.npcs.find((item) => item.id === action.target);
+    updates.push({
+      type: "metric_change",
+      metric: "truth_progress",
+      delta: npc ? 8 : 5,
     });
   }
 
@@ -251,6 +278,42 @@ function generateSuccessUpdates(
       flag: `${action.actor_id}_stealth_mode`,
     });
   }
+}
+
+function truthDeltaForAction(action: StructuredAction): number {
+  if (["eavesdrop", "decode", "interrogate"].includes(action.action_type)) return 20;
+  if (["search", "track"].includes(action.action_type)) return 15;
+  if (["prioritize_clues", "cross_check_statement", "evidence_confrontation", "broaden_search"].includes(action.method)) return 15;
+  return 12;
+}
+
+function rotateActionAdvantage(
+  action: StructuredAction,
+  updates: StateUpdate[],
+  state: WorldState,
+  success: boolean
+): void {
+  const prefix = `adv_${action.actor_id}_`;
+  Object.keys(state.flags)
+    .filter((flag) => flag.startsWith(prefix))
+    .forEach((flag) => updates.push({ type: "clear_flag", flag }));
+
+  if (!success) return;
+
+  updates.push({ type: "set_flag", flag: `${prefix}momentum` });
+  updates.push({ type: "set_flag", flag: `${prefix}target_${safeFlagPart(action.target)}` });
+  updates.push({ type: "set_flag", flag: `${prefix}category_${getActionCategory(action.action_type)}` });
+
+  if (["investigate", "search", "track", "decode", "eavesdrop", "interrogate"].includes(action.action_type)) {
+    updates.push({ type: "set_flag", flag: `${prefix}category_social` });
+  }
+  if (["talk", "persuade", "deceive", "threaten"].includes(action.action_type)) {
+    updates.push({ type: "set_flag", flag: `${prefix}category_investigation` });
+  }
+}
+
+function safeFlagPart(value: string | undefined): string {
+  return String(value || "unknown").replace(/[^a-zA-Z0-9_]/g, "_");
 }
 
 function buildActionFact(action: StructuredAction, bible: StoryBible): string {

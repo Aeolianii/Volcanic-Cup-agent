@@ -6,8 +6,9 @@ import { applyUpdates } from "@/engine/worldStateEngine";
 import { checkEventTriggers } from "@/engine/eventTriggerSystem";
 import { checkEndings } from "@/engine/endingJudge";
 import { generateGMNarrative } from "@/engine/aiGM";
+import { checkChapterTransition } from "@/engine/storyController";
 import { getAIProvider } from "@/lib/aiProvider";
-import type { ActionType, ParsedAction, StructuredAction } from "@/types";
+import type { ActionType, EventEffect, ParsedAction, StateUpdate, StructuredAction } from "@/types";
 
 const VALID_ACTION_TYPES: ActionType[] = [
   "talk", "persuade", "threaten", "deceive", "ally", "betray", "confess",
@@ -115,7 +116,20 @@ export async function POST(
     for (const te of triggeredEvents) {
       worldState = applyUpdates(worldState, [
         { type: "trigger_event", target: te.event.id },
+        ...eventEffectsToStateUpdates(te.event.effects, body.player_id),
       ]);
+    }
+
+    const chapterTransition = checkChapterTransition(worldState, bible);
+    if (chapterTransition.should_transition) {
+      worldState = {
+        ...worldState,
+        chapter: chapterTransition.to_chapter,
+        flags: {
+          ...worldState.flags,
+          [`chapter_${chapterTransition.to_chapter}_started`]: true,
+        },
+      };
     }
     roomManager.updateWorldState(roomId, worldState);
 
@@ -162,6 +176,7 @@ export async function POST(
       })),
       ending: endingResult.reached ? endingResult.ending : null,
       all_endings_status: endingResult.all_endings_status,
+      chapter_transition: chapterTransition.should_transition ? chapterTransition : null,
       gm_narrative: gmNarrative,
       gm_message: gmMessage,
       suggested_actions: gmNarrative.suggested_actions,
@@ -173,6 +188,29 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+function eventEffectsToStateUpdates(effects: EventEffect[], playerId: string): StateUpdate[] {
+  return effects.flatMap((effect): StateUpdate[] => {
+    switch (effect.type) {
+      case "set_flag":
+        return [{ type: "set_flag", flag: effect.target, value: effect.value }];
+      case "modify_metric":
+        return [{
+          type: "metric_change",
+          metric: effect.target,
+          delta: typeof effect.value === "number" ? effect.value : Number(effect.value) || 0,
+        }];
+      case "add_knowledge":
+        return [{ type: "add_known_fact", target: playerId, fact_id: String(effect.value || effect.target) }];
+      case "reveal_event":
+        return [{ type: "set_flag", flag: String(effect.target), value: effect.value }];
+      case "change_location":
+        return [{ type: "change_location", target: playerId, value: String(effect.value || effect.target) }];
+      default:
+        return [];
+    }
+  });
 }
 
 function normalizeActionTarget(

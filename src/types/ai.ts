@@ -33,6 +33,7 @@ export interface GMActionContext {
   success: boolean;
   public_result: string;
   private_result?: string;
+  implicit_effects?: string[];
   state_updates: Array<{
     type: string;
     target?: string;

@@ -54,6 +54,13 @@ function evaluateCondition(condition: TriggerCondition, state: WorldState): bool
     return compareValues(flagVal, operator, value);
   }
 
+  if (field.startsWith("flag_")) {
+    const flagName = field.replace(/^flag_/, "");
+    const flagVal = state.flags[flagName];
+    if (operator === "exists") return flagVal === true;
+    return compareValues(flagVal, operator, value);
+  }
+
   // Check turn
   if (field === "turn") {
     return compareValues(state.turn, operator, value as number);

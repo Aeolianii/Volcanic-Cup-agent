@@ -182,11 +182,15 @@ function sanitizeSuggestedActions(
     return !(targetsSelf && socialActions.has(action.action_type));
   });
 
-  if (filtered.length >= 3) return filtered.slice(0, 5);
+  if (filtered.length >= 3 || !allowsTemplateFallback(bible)) return filtered.slice(0, 5);
 
   return [...filtered, ...buildRoleFallbackActions(player, worldState, bible)]
     .filter((action, index, all) => all.findIndex((a) => a.label === action.label) === index)
     .slice(0, 5);
+}
+
+function allowsTemplateFallback(bible: StoryBible): boolean {
+  return bible.id === "demo_lost_holy_grail";
 }
 
 function buildRoleFallbackActions(player: Player, worldState: WorldState, bible: StoryBible): SuggestedActionForGM[] {

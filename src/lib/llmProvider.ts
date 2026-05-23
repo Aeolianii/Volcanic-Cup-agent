@@ -204,8 +204,6 @@ export const llmAIProvider: AIProvider = {
   },
 
   async generateNarrative(context: GMContext): Promise<GMNarrativeOutput> {
-    const fallback = await mockAIProvider.generateNarrative(context);
-
     if (context.last_action) {
       return chatJSONStrictRace<GMNarrativeOutput>(
         [
@@ -215,8 +213,12 @@ export const llmAIProvider: AIProvider = {
               "你是互动叙事游戏的 AI GM。只输出合法 JSON。",
               "根据玩家上一行动、规则结算结果和当前 World State 写主叙事。",
               "必须具体写出行动造成的反馈、目标人物或地点的回应、获得的信息、局势变化。",
+              "last_action.implicit_effects 是隐藏/条件指标造成的模糊体感变化，可以自然融入叙事。",
+              "禁止写出隐藏指标名称、内部 key 或具体数值；例如不要写“怀疑值上升5”，要写“你的举动引起了一些人的怀疑”。",
               "不要只说成功或失败，不要输出内部 id，不要编入当前 Story Bible 之外的题材模板。",
               "JSON 字段必须是 narration, suggested_events, revealed_information, suggested_actions, mood。",
+              "suggested_actions 必须结合当前 World State、上一行动结果、已触发事件和角色处境生成 3 到 5 个新的下一步行动。",
+              "suggested_actions 不得重复上一行动，不得使用与当前剧情无关的本地模板。",
               "narration 用中文，控制在 180 到 320 字。",
             ].join("\n"),
           },
@@ -228,16 +230,12 @@ export const llmAIProvider: AIProvider = {
 
     const messages: ChatMessage[] = [
       systemJSON(
-        "生成 GM 叙事。AI GM 可以读取摘要，但不能修改 World State。输出字段必须为 narration, suggested_events, revealed_information, suggested_actions, mood。suggested_actions 每项必须含 label, action_type, target, method, intent, risk_level, context。推荐行动必须贴合当前设定，不能把当前玩家自己当作社交目标。"
+        "生成 GM 叙事。AI GM 可以读取摘要，但不能修改 World State。输出字段必须为 narration, suggested_events, revealed_information, suggested_actions, mood。suggested_actions 每项必须含 label, action_type, target, method, intent, risk_level, context。推荐行动必须基于当前 Story Bible、World State、当前章节、公开事件和角色处境生成，不能把当前玩家自己当作社交目标，不能输出与当前剧情无关的固定模板。"
       ),
       { role: "user", content: JSON.stringify(context) },
     ];
 
-    return chatJSON<GMNarrativeOutput>(
-      messages,
-      fallback,
-      1800
-    );
+    return chatJSONStrict<GMNarrativeOutput>(messages, 1800);
   },
 
   async generateNPCAction(context: NPCContext): Promise<NPCActionOutput | null> {
@@ -311,6 +309,7 @@ function compactActionNarrativeContext(context: GMContext) {
           raw_input: lastAction.raw_input,
           success: lastAction.success,
           rule_public_result: lastAction.public_result,
+          implicit_effects: lastAction.implicit_effects || [],
           state_updates: lastAction.state_updates,
           triggered_events: lastAction.triggered_events,
         }

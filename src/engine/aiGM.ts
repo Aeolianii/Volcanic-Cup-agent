@@ -73,7 +73,9 @@ function failedNarrative(
     ].join("\n\n"),
     suggested_events: lastAction?.triggered_events.map((event) => event.id) || [],
     revealed_information: [],
-    suggested_actions: lastAction ? generateContextualActions(state, bible, lastAction) : [],
+    suggested_actions: allowsTemplateFallback(bible) && lastAction
+      ? generateContextualActions(state, bible, lastAction)
+      : [],
     mood: "tense",
   };
 }
@@ -180,11 +182,13 @@ function buildGMContext(
     },
     world_state_summary: {
       flags: state.flags,
-      metrics: state.metrics.map((metric) => ({
-        id: metric.metric_id,
-        label: metric.metric_id,
-        value: metric.value,
-      })),
+      metrics: state.metrics
+        .filter((metric) => isPlayerVisibleMetric(metric.metric_id, bible))
+        .map((metric) => ({
+          id: metric.metric_id,
+          label: bible.metrics.find((item) => item.id === metric.metric_id)?.label || metric.metric_id,
+          value: metric.value,
+        })),
       active_events: state.events
         .filter((event) => event.triggered)
         .map((event) => eventLabel(event.event_id)),
@@ -224,14 +228,17 @@ function buildLastActionContext(
     success: result.success,
     public_result: result.public_result,
     private_result: result.private_result,
-    state_updates: result.state_updates.map((update) => ({
-      type: update.type,
-      target: update.target,
-      fact_id: update.fact_id,
-      metric: update.metric,
-      delta: update.delta,
-      value: update.value,
-    })),
+    implicit_effects: buildImplicitMetricEffects(result.state_updates, bible),
+    state_updates: result.state_updates
+      .filter((update) => update.type !== "metric_change" || !update.metric || isPlayerVisibleMetric(update.metric, bible))
+      .map((update) => ({
+        type: update.type,
+        target: update.target,
+        fact_id: update.fact_id,
+        metric: update.metric,
+        delta: update.delta,
+        value: update.value,
+      })),
     triggered_events: triggeredEvents,
   };
 }
@@ -281,7 +288,7 @@ function templateNarrative(
       narration: actionNarration,
       suggested_events: lastAction.triggered_events.map((event) => event.id),
       revealed_information: buildRevealedInformation(lastAction),
-      suggested_actions: generateContextualActions(state, bible),
+      suggested_actions: generateContextualActions(state, bible, lastAction),
       mood: lastAction.success ? "investigative" : "tense",
     };
   }
@@ -331,11 +338,17 @@ function buildActionNarration(
     .map((event) => bible.events.find((storyEvent) => storyEvent.id === event.event_id)?.title)
     .filter(Boolean);
   const metricLines = lastAction.state_updates
-    .filter((update) => update.type === "metric_change" && update.metric && update.delta)
+    .filter((update) =>
+      update.type === "metric_change" &&
+      update.metric &&
+      update.delta &&
+      isPlayerVisibleMetric(update.metric, bible)
+    )
     .map((update) => {
       const metricName = bible.metrics.find((metric) => metric.id === update.metric)?.label || update.metric;
       return `${metricName}${Number(update.delta) > 0 ? "上升" : "下降"}${Math.abs(Number(update.delta))}`;
     });
+  const implicitLines = lastAction.implicit_effects || [];
   const triggeredLines = lastAction.triggered_events.map((event) => `新的事件被推到台前：${event.title}。`);
   const resultLine = lastAction.success
     ? buildSuccessfulActionResult(lastAction, bible)
@@ -346,6 +359,7 @@ function buildActionNarration(
     `${lastAction.actor_name}${lastAction.success ? "完成了" : "尝试了"}“${lastAction.action_label}”：${lastAction.raw_input || lastAction.public_result}`,
     resultLine,
     metricLines.length > 0 ? `局势变化：${metricLines.join("，")}。` : "",
+    implicitLines.length > 0 ? `暗流变化：${implicitLines.join("，")}` : "",
     triggeredLines.join("\n"),
     activeEvents.length > 0 ? `当前公开事件：${activeEvents.join("、")}。` : "",
   ].filter(Boolean).join("\n\n");
@@ -390,6 +404,41 @@ function buildRevealedInformation(lastAction: GMActionContext): GMNarrativeOutpu
       content: String(update.fact_id || lastAction.public_result),
       visible_to: [lastAction.actor_id],
     }));
+}
+
+function isPlayerVisibleMetric(metricId: string, bible: StoryBible): boolean {
+  return bible.metrics.find((metric) => metric.id === metricId)?.visibility === "public";
+}
+
+function buildImplicitMetricEffects(updates: RuleResult["state_updates"], bible: StoryBible): string[] {
+  const effects = updates
+    .filter((update) => update.type === "metric_change" && update.metric && update.delta)
+    .filter((update) => !isPlayerVisibleMetric(update.metric!, bible))
+    .map((update) => implicitMetricEffect(update.metric!, Number(update.delta), bible))
+    .filter(Boolean);
+
+  return Array.from(new Set(effects));
+}
+
+function implicitMetricEffect(metricId: string, delta: number, bible: StoryBible): string {
+  const metric = bible.metrics.find((item) => item.id === metricId);
+  const label = metric?.label || metricId;
+  const text = `${metricId} ${label}`.toLowerCase();
+
+  if (text.includes("suspicion") || label.includes("怀疑") || label.includes("戒心")) {
+    return delta > 0 ? "你的举动引起了一些人的怀疑。" : "周围的戒心稍稍缓和。";
+  }
+  if (text.includes("trust") || label.includes("信任")) {
+    return delta > 0 ? "有人对你的态度悄悄缓和。" : "某些关系正在变得紧绷。";
+  }
+  if (text.includes("influence") || label.includes("影响")) {
+    return delta > 0 ? "某种难以言说的影响正在加深。" : "某种无形影响暂时退去了一些。";
+  }
+  if (label.includes("稳定") || text.includes("stability")) {
+    return delta > 0 ? "局面表面上稳住了一些。" : "局面下方出现了新的裂痕。";
+  }
+
+  return delta > 0 ? "暗处的压力正在升高。" : "暗处的压力稍有回落。";
 }
 
 function actionLabel(actionType: string): string {
@@ -528,6 +577,10 @@ function refreshSuggestedActions(
   bible: StoryBible,
   lastAction?: GMActionContext
 ): GMNarrativeOutput["suggested_actions"] {
+  if (!allowsTemplateFallback(bible)) {
+    return mergeSuggestedActions([], aiActions, lastAction).slice(0, 5);
+  }
+
   return mergeSuggestedActions(
     buildFollowUpActions(state, bible, lastAction),
     aiActions,
@@ -611,13 +664,17 @@ function buildFollowUpActions(
         context: "把刚得到的说法和现场记录、时间线进行交叉验证",
       },
       {
-        label: bishop && lastAction.target !== bishop.id ? `追问${bishop.name}` : "询问守卫",
+        label: bishop && lastAction.target !== bishop.id
+          ? `向${bishop.name}核对${lastAction.target_name}说法`
+          : "询问守卫",
         action_type: "talk",
         target: bishop && lastAction.target !== bishop.id ? bishop.id : "guard",
         method: "follow_up_questioning",
         intent: "find_contradiction",
         risk_level: "medium",
-        context: "寻找与刚才证词相冲突的细节",
+        context: bishop && lastAction.target !== bishop.id
+          ? `带着${lastAction.target_name}刚给出的线索，验证圣殿记录和时间线是否对得上`
+          : "寻找与刚才证词相冲突的细节",
       },
     ];
   }
