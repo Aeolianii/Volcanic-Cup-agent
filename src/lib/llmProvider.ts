@@ -70,6 +70,91 @@ async function chatJSON<T>(messages: ChatMessage[], fallback: T, maxTokens = 120
   }
 }
 
+async function chatJSONStrict<T>(messages: ChatMessage[], maxTokens = 1200): Promise<T> {
+  return requestJSONStrict<T>(messages, maxTokens, {
+    temperature: 0.75,
+    responseFormat: true,
+  });
+}
+
+type StrictRequestOptions = {
+  temperature: number;
+  responseFormat: boolean;
+  signal?: AbortSignal;
+};
+
+async function requestJSONStrict<T>(
+  messages: ChatMessage[],
+  maxTokens = 1200,
+  options: StrictRequestOptions
+): Promise<T> {
+  const { apiKey, baseUrl, model } = getConfig();
+  if (!apiKey) throw new Error("Missing AI API key");
+
+  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: maxTokens,
+      stream: false,
+      temperature: options.temperature,
+      ...(options.responseFormat ? { response_format: { type: "json_object" } } : {}),
+    }),
+    signal: options.signal,
+  });
+
+  if (!response.ok) throw new Error(`LLM request failed: ${response.status}`);
+
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content !== "string") throw new Error("LLM response is empty");
+
+  return parseJSONStrict<T>(content);
+}
+
+async function chatJSONStrictRace<T>(messages: ChatMessage[], maxTokens = 1400): Promise<T> {
+  const attempts = [
+    { temperature: 0.72, responseFormat: true, maxTokens },
+    { temperature: 0.82, responseFormat: false, maxTokens: Math.max(maxTokens, 1500) },
+  ];
+  const controllers = attempts.map(() => new AbortController());
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    let pending = attempts.length;
+    const errors: string[] = [];
+
+    attempts.forEach((attempt, index) => {
+      requestJSONStrict<T>(messages, attempt.maxTokens, {
+        temperature: attempt.temperature,
+        responseFormat: attempt.responseFormat,
+        signal: controllers[index].signal,
+      })
+        .then((value) => {
+          if (settled) return;
+          settled = true;
+          controllers.forEach((controller, controllerIndex) => {
+            if (controllerIndex !== index) controller.abort();
+          });
+          resolve(value);
+        })
+        .catch((error) => {
+          if (settled) return;
+          errors.push(String(error));
+          pending -= 1;
+          if (pending === 0) {
+            reject(new Error(`All LLM race attempts failed: ${errors.join(" | ")}`));
+          }
+        });
+    });
+  });
+}
+
 function parseJSON<T>(content: string, fallback: T): T {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const raw = (fenced || content).trim();
@@ -84,6 +169,18 @@ function parseJSON<T>(content: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function parseJSONStrict<T>(content: string): T {
+  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+  const raw = (fenced || content).trim();
+  const firstBrace = raw.indexOf("{");
+  const lastBrace = raw.lastIndexOf("}");
+  const jsonText = firstBrace >= 0 && lastBrace >= firstBrace
+    ? raw.slice(firstBrace, lastBrace + 1)
+    : raw;
+
+  return JSON.parse(jsonText) as T;
 }
 
 function systemJSON(task: string): ChatMessage {
@@ -108,13 +205,36 @@ export const llmAIProvider: AIProvider = {
 
   async generateNarrative(context: GMContext): Promise<GMNarrativeOutput> {
     const fallback = await mockAIProvider.generateNarrative(context);
+
+    if (context.last_action) {
+      return chatJSONStrictRace<GMNarrativeOutput>(
+        [
+          {
+            role: "system",
+            content: [
+              "你是互动叙事游戏的 AI GM。只输出合法 JSON。",
+              "根据玩家上一行动、规则结算结果和当前 World State 写主叙事。",
+              "必须具体写出行动造成的反馈、目标人物或地点的回应、获得的信息、局势变化。",
+              "不要只说成功或失败，不要输出内部 id，不要编入当前 Story Bible 之外的题材模板。",
+              "JSON 字段必须是 narration, suggested_events, revealed_information, suggested_actions, mood。",
+              "narration 用中文，控制在 180 到 320 字。",
+            ].join("\n"),
+          },
+          { role: "user", content: JSON.stringify(compactActionNarrativeContext(context)) },
+        ],
+        1400
+      );
+    }
+
+    const messages: ChatMessage[] = [
+      systemJSON(
+        "生成 GM 叙事。AI GM 可以读取摘要，但不能修改 World State。输出字段必须为 narration, suggested_events, revealed_information, suggested_actions, mood。suggested_actions 每项必须含 label, action_type, target, method, intent, risk_level, context。推荐行动必须贴合当前设定，不能把当前玩家自己当作社交目标。"
+      ),
+      { role: "user", content: JSON.stringify(context) },
+    ];
+
     return chatJSON<GMNarrativeOutput>(
-      [
-        systemJSON(
-          "生成 GM 叙事。AI GM 可以读取摘要，但不能修改 World State。输出字段必须为 narration, suggested_events, revealed_information, suggested_actions, mood。suggested_actions 每项必须含 label, action_type, target, method, intent, risk_level, context。推荐行动必须贴合当前设定，不能把当前玩家自己当作社交目标。"
-        ),
-        { role: "user", content: JSON.stringify(context) },
-      ],
+      messages,
       fallback,
       1800
     );
@@ -162,6 +282,42 @@ export const llmAIProvider: AIProvider = {
   },
 };
 
+function compactActionNarrativeContext(context: GMContext) {
+  const lastAction = context.last_action;
+  return {
+    story: {
+      title: context.story_bible.title,
+      world_setting: context.story_bible.world_setting,
+      npcs: context.story_bible.npcs,
+      roles: context.story_bible.roles,
+      current_chapter_events: context.story_bible.current_chapter_events,
+    },
+    world_state: {
+      turn: context.current_turn,
+      chapter: context.current_chapter,
+      active_events: context.world_state_summary.active_events,
+      metrics: context.world_state_summary.metrics,
+      flags: context.world_state_summary.flags,
+    },
+    last_action: lastAction
+      ? {
+          actor_name: lastAction.actor_name,
+          action_label: lastAction.action_label,
+          action_type: lastAction.action_type,
+          target_name: lastAction.target_name,
+          method: lastAction.method,
+          intent: lastAction.intent,
+          risk_level: lastAction.risk_level,
+          raw_input: lastAction.raw_input,
+          success: lastAction.success,
+          rule_public_result: lastAction.public_result,
+          state_updates: lastAction.state_updates,
+          triggered_events: lastAction.triggered_events,
+        }
+      : null,
+  };
+}
+
 function localParseAction(input: string, context: ActionParseContext): ParsedAction {
   const target = inferTarget(input, context.current_location);
 
@@ -207,6 +363,13 @@ function inferTarget(input: string, currentLocation: string): string {
     [/档案|资料/, "archive"],
     [/会面|约定/, "meeting_place"],
     [/角落/, "quiet_corner"],
+    [/圣殿|神殿/, "temple"],
+    [/地下室|教堂地下室/, "cathedral_basement"],
+    [/祭坛/, "underground_altar"],
+    [/大法师/, "npc_archmage"],
+    [/国王|老国王/, "npc_old_king"],
+    [/主教/, "npc_bishop"],
+    [/守卫/, "guard"],
   ];
 
   return targets.find(([pattern]) => pattern.test(input))?.[1] || currentLocation || "current_location";

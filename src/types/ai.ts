@@ -16,6 +16,36 @@ export interface GMContext {
   recent_events: string[];
   current_turn: number;
   current_chapter: number;
+  last_action?: GMActionContext;
+}
+
+export interface GMActionContext {
+  actor_id: string;
+  actor_name: string;
+  action_type: string;
+  action_label: string;
+  target: string;
+  target_name: string;
+  method: string;
+  intent: string;
+  risk_level: "low" | "medium" | "high";
+  raw_input?: string;
+  success: boolean;
+  public_result: string;
+  private_result?: string;
+  state_updates: Array<{
+    type: string;
+    target?: string;
+    fact_id?: string;
+    metric?: string;
+    delta?: number;
+    value?: unknown;
+  }>;
+  triggered_events: Array<{
+    id: string;
+    title: string;
+    description?: string;
+  }>;
 }
 
 export interface StoryBibleSummary {

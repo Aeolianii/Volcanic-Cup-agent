@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useReducer } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { UIBuilder } from "@/components/ui/UIBuilder";
 import { gameReducer, initialGameState, GameContext } from "@/lib/gameStore";
-import type { Room, WorldState, PlayerView, ChatMessage } from "@/types";
+import type { Room, WorldState, PlayerView, ChatMessage, SuggestedAction } from "@/types";
 
 export default function RoomPage() {
   const params = useParams();
@@ -25,6 +25,8 @@ export default function RoomPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionFeedback, setActionFeedback] = useState("");
+  const [actionPending, setActionPending] = useState(false);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
   // Initialize: fetch room state
   useEffect(() => {
@@ -120,12 +122,17 @@ export default function RoomPage() {
   };
 
   // Refresh player view
-  const refreshPlayerView = async () => {
+  const refreshPlayerView = async (suggestedActionsOverride?: SuggestedAction[]) => {
     try {
       const res = await fetch(`/api/rooms/${roomId}/players/${playerId}/view`);
       const data = await res.json();
       if (data.success) {
-        dispatch({ type: "SET_PLAYER_VIEW", view: data.player_view });
+        dispatch({
+          type: "SET_PLAYER_VIEW",
+          view: suggestedActionsOverride
+            ? { ...data.player_view, suggested_actions: suggestedActionsOverride }
+            : data.player_view,
+        });
         // Add GM opening narration if first view
         if (state.chatMessages.length === 0) {
           const openingContent =
@@ -185,7 +192,11 @@ export default function RoomPage() {
   // Send action
   const handleSendAction = useCallback(
     async (actionText: string) => {
-      setActionFeedback("");
+      if (actionPending) return;
+
+      setActionPending(true);
+      setPendingActionId("free_action");
+      setActionFeedback(`已提交行动：“${actionText}”。正在解析与结算...`);
       try {
         const res = await fetch(`/api/rooms/${roomId}/actions`, {
           method: "POST",
@@ -200,6 +211,12 @@ export default function RoomPage() {
         const data = await res.json();
 
         if (data.success) {
+          setActionFeedback(
+            data.rule_result?.public_result
+              ? `${data.rule_result.public_result} GM 正在续写下一段...`
+              : "行动已结算，GM 正在续写下一段..."
+          );
+
           // Add GM response
           if (data.gm_message) {
             dispatch({ type: "ADD_CHAT_MESSAGE", message: data.gm_message });
@@ -209,8 +226,15 @@ export default function RoomPage() {
           if (data.world_state) {
             dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
           }
+          const nextSuggestedActions = normalizeSuggestedActions(data.suggested_actions);
+          if (nextSuggestedActions.length > 0 && state.playerView) {
+            dispatch({
+              type: "SET_PLAYER_VIEW",
+              view: { ...state.playerView, suggested_actions: nextSuggestedActions },
+            });
+          }
 
-          setActionFeedback(data.rule_result?.public_result || "");
+          setActionFeedback("行动已结算，结果已写入 GM 叙事。");
 
           // Check ending
           if (data.ending) {
@@ -220,7 +244,7 @@ export default function RoomPage() {
           }
 
           // Refresh view
-          await refreshPlayerView();
+          await refreshPlayerView(nextSuggestedActions.length > 0 ? nextSuggestedActions : undefined);
 
           // Auto NPC turn
           try {
@@ -229,13 +253,16 @@ export default function RoomPage() {
             // NPC turn is optional
           }
         } else {
-          setActionFeedback("行动失败: " + (data.error || "未知错误"));
+          setActionFeedback("行动失败：" + (data.error || "未知错误"));
         }
       } catch {
-        setActionFeedback("网络错误");
+        setActionFeedback("网络错误，行动没有成功提交。");
+      } finally {
+        setActionPending(false);
+        setPendingActionId(null);
       }
     },
-    [roomId, playerId, state.playerView]
+    [actionPending, roomId, playerId, state.playerView]
   );
 
   // Handle suggested action
@@ -250,7 +277,11 @@ export default function RoomPage() {
       risk_level: "low" | "medium" | "high";
       context: string;
     }) => {
-      setActionFeedback("");
+      if (actionPending) return;
+
+      setActionPending(true);
+      setPendingActionId(action.id);
+      setActionFeedback(`已选择推荐行动：“${action.label}”。正在结算...`);
       try {
         const res = await fetch(`/api/rooms/${roomId}/actions`, {
           method: "POST",
@@ -271,13 +302,26 @@ export default function RoomPage() {
         const data = await res.json();
 
         if (data.success) {
+          setActionFeedback(
+            data.rule_result?.public_result
+              ? `${data.rule_result.public_result} GM 正在续写下一段...`
+              : "行动已结算，GM 正在续写下一段..."
+          );
+
           if (data.gm_message) {
             dispatch({ type: "ADD_CHAT_MESSAGE", message: data.gm_message });
           }
           if (data.world_state) {
             dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
           }
-          setActionFeedback(data.rule_result?.public_result || "");
+          const nextSuggestedActions = normalizeSuggestedActions(data.suggested_actions);
+          if (nextSuggestedActions.length > 0 && state.playerView) {
+            dispatch({
+              type: "SET_PLAYER_VIEW",
+              view: { ...state.playerView, suggested_actions: nextSuggestedActions },
+            });
+          }
+          setActionFeedback("行动已结算，结果已写入 GM 叙事。");
 
           if (data.ending) {
             dispatch({ type: "SET_PHASE", phase: "ending" });
@@ -285,13 +329,18 @@ export default function RoomPage() {
             return;
           }
 
-          await refreshPlayerView();
+          await refreshPlayerView(nextSuggestedActions.length > 0 ? nextSuggestedActions : undefined);
+        } else {
+          setActionFeedback("行动失败：" + (data.error || "未知错误"));
         }
       } catch {
-        setActionFeedback("网络错误");
+        setActionFeedback("网络错误，行动没有成功提交。");
+      } finally {
+        setActionPending(false);
+        setPendingActionId(null);
       }
     },
-    [roomId, playerId]
+    [actionPending, roomId, playerId, state.playerView]
   );
 
   const handleConvertToAction = useCallback(
@@ -435,13 +484,17 @@ export default function RoomPage() {
       <GameContext.Provider value={{ state, dispatch }}>
         <div>
           {actionFeedback && (
-            <div className="mb-4 bg-midnight-700 border border-amber-600/50 rounded p-3 text-sm text-amber-300">
-              {actionFeedback}
+            <div className="mb-4 flex items-start gap-3 bg-midnight-700 border border-amber-600/50 rounded p-3 text-sm text-amber-300">
+              {actionPending && (
+                <span className="mt-1 h-2 w-2 rounded-full bg-amber-300 animate-pulse shrink-0" />
+              )}
+              <span className="flex-1">{actionFeedback}</span>
               <button
                 onClick={() => setActionFeedback("")}
-                className="float-right text-parchant-600 hover:text-parchant-300"
+                className="text-parchant-600 hover:text-parchant-300 shrink-0"
+                disabled={actionPending}
               >
-                ✕
+                关闭
               </button>
             </div>
           )}
@@ -453,6 +506,8 @@ export default function RoomPage() {
             onSendAction={handleSendAction}
             onSelectSuggestedAction={handleSelectSuggestedAction}
             onConvertToAction={handleConvertToAction}
+            disabled={actionPending}
+            pendingActionId={pendingActionId}
           />
         </div>
       </GameContext.Provider>
@@ -460,6 +515,26 @@ export default function RoomPage() {
   }
 
   return null;
+}
+
+function normalizeSuggestedActions(actions: unknown): SuggestedAction[] {
+  if (!Array.isArray(actions)) return [];
+  return actions
+    .filter((action): action is Omit<SuggestedAction, "id"> & { id?: string } => {
+      if (!action || typeof action !== "object") return false;
+      const item = action as Record<string, unknown>;
+      return typeof item.label === "string" && typeof item.action_type === "string";
+    })
+    .map((action, index) => ({
+      id: action.id || `sa_next_${Date.now()}_${index}`,
+      label: action.label,
+      action_type: action.action_type,
+      target: action.target || "current_location",
+      method: action.method || "direct",
+      intent: action.intent || action.action_type,
+      risk_level: action.risk_level || "medium",
+      context: action.context || "",
+    }));
 }
 
 // Role selector sub-component

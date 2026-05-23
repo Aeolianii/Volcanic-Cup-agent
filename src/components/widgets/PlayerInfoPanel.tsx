@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { PlayerView } from "@/types";
 
 interface PlayerInfoPanelProps {
@@ -11,8 +12,8 @@ const ACTION_LABELS: Record<string, string> = {
   search: "搜索",
   track: "追踪",
   eavesdrop: "偷听",
-  interrogate: "审问",
-  decode: "解码",
+  interrogate: "盘问",
+  decode: "解读",
   talk: "交谈",
   persuade: "说服",
   threaten: "威胁",
@@ -23,18 +24,18 @@ const ACTION_LABELS: Record<string, string> = {
   command: "下令",
   summon_meeting: "召集会议",
   gain_support: "争取支持",
-  coup: "政变",
+  coup: "夺权",
   impeach: "弹劾",
   appoint: "任命",
   attack: "攻击",
   assassinate: "刺杀",
   duel: "决斗",
   ambush: "伏击",
-  defend: "防御",
-  buy: "购买",
+  defend: "防守",
+  buy: "收买",
   trade: "交易",
   steal: "偷取",
-  transport: "运输",
+  transport: "转移",
   build: "建造",
 };
 
@@ -49,10 +50,17 @@ const TARGET_LABELS: Record<string, string> = {
   tavern: "乌鸦酒馆",
   surroundings: "周围环境",
   current_location: "当前位置",
+  connected_location: "相关地点",
+  current_event: "当前事件",
+  informed_npc: "知情者",
+  witness: "证人",
   self_goal: "个人目标",
   npc_archmage: "大法师",
   npc_old_king: "老国王",
   npc_bishop: "主教",
+  archmage: "大法师",
+  old_king: "老国王",
+  bishop: "主教",
   guard: "守卫",
   all: "所有人",
   all_players: "所有玩家",
@@ -73,7 +81,7 @@ function formatFact(fact: string): string {
 
   if (fact.startsWith("npc_action_")) {
     const body = fact.replace("npc_action_", "").replace(/_\d+$/, "");
-    const npc = TARGET_LABELS[body] || body;
+    const npc = TARGET_LABELS[body] || body.replace(/_/g, " ");
     return `${npc}采取了新的行动`;
   }
 
@@ -91,6 +99,8 @@ function formatLocation(location: string): string {
 }
 
 export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
+  const [factsExpanded, setFactsExpanded] = useState(false);
+
   if (!playerView) {
     return (
       <div className="panel">
@@ -99,6 +109,9 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
       </div>
     );
   }
+
+  const facts = factsExpanded ? playerView.known_facts : playerView.known_facts.slice(0, 5);
+  const hiddenFactCount = Math.max(0, playerView.known_facts.length - 5);
 
   return (
     <div className="panel">
@@ -143,16 +156,34 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
 
         {playerView.known_facts.length > 0 && (
           <div>
-            <h4 className="text-xs text-amber-500/80 uppercase tracking-wider mb-1">
-              已知事实 ({playerView.known_facts.length})
-            </h4>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <h4 className="text-xs text-amber-500/80 uppercase tracking-wider">
+                已知事实 ({playerView.known_facts.length})
+              </h4>
+              {hiddenFactCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFactsExpanded((value) => !value)}
+                  className="text-[11px] text-amber-400 hover:text-amber-300 underline-offset-2 hover:underline"
+                >
+                  {factsExpanded ? "收起" : `展开全部 ${playerView.known_facts.length} 条`}
+                </button>
+              )}
+            </div>
+
             <ul className="text-xs text-parchment-400 list-disc list-inside">
-              {playerView.known_facts.slice(0, 5).map((fact, i) => (
-                <li key={i}>{formatFact(fact)}</li>
+              {facts.map((fact, index) => (
+                <li key={`${fact}_${index}`}>{formatFact(fact)}</li>
               ))}
-              {playerView.known_facts.length > 5 && (
-                <li className="text-parchment-600">
-                  ...还有 {playerView.known_facts.length - 5} 条
+              {hiddenFactCount > 0 && !factsExpanded && (
+                <li className="list-none mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setFactsExpanded(true)}
+                    className="text-parchment-500 hover:text-amber-300 underline-offset-2 hover:underline"
+                  >
+                    还有 {hiddenFactCount} 条，点击展开
+                  </button>
                 </li>
               )}
             </ul>

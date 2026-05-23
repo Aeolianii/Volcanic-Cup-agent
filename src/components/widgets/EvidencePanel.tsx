@@ -15,9 +15,17 @@ const TARGET_LABELS: Record<string, string> = {
   city_streets: "王城街道",
   tavern: "乌鸦酒馆",
   surroundings: "周围环境",
+  current_location: "当前位置",
+  connected_location: "相关地点",
+  current_event: "当前事件",
+  informed_npc: "知情者",
   npc_archmage: "大法师",
   npc_old_king: "老国王",
   npc_bishop: "主教",
+  archmage: "大法师",
+  old_king: "老国王",
+  bishop: "主教",
+  guard: "守卫",
 };
 
 function formatEvidence(item: string): string {

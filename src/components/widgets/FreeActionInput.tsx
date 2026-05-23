@@ -11,7 +11,7 @@ interface FreeActionInputProps {
 export function FreeActionInput({
   onSubmitAction,
   disabled = false,
-  placeholder = "输入你的行动，例如：我要假扮修士潜入地下室偷听主教和大法师的谈话...",
+  placeholder = "输入你的行动，例如：我要假扮修士潜入地下室，偷听主教和大法师的谈话...",
 }: FreeActionInputProps) {
   const [input, setInput] = useState("");
 
@@ -21,9 +21,9 @@ export function FreeActionInput({
     setInput("");
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       handleSubmit();
     }
   };
@@ -40,22 +40,22 @@ export function FreeActionInput({
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(event) => setInput(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={disabled ? "行动处理中，请稍候..." : placeholder}
           disabled={disabled}
           className="input-field text-sm flex-1"
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !input.trim()}
-          className="btn-primary text-sm px-4 whitespace-nowrap"
+          className="btn-primary text-sm px-4 whitespace-nowrap disabled:opacity-60 disabled:cursor-wait"
         >
-          执行行动
+          {disabled ? "处理中" : "执行行动"}
         </button>
       </div>
       <p className="text-[10px] text-parchment-600 mt-1">
-        描述你想做什么，系统会自动解析为结构化行动
+        描述你想做什么，系统会自动解析为结构化行动。
       </p>
     </div>
   );

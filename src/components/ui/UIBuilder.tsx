@@ -22,6 +22,7 @@ interface UIBuilderProps {
   onSelectSuggestedAction: (action: { id: string; label: string; action_type: string; target: string; method: string; intent: string; risk_level: "low" | "medium" | "high"; context: string }) => void;
   onConvertToAction?: (messageId: string) => void;
   disabled?: boolean;
+  pendingActionId?: string | null;
 }
 
 export function UIBuilder({
@@ -32,6 +33,7 @@ export function UIBuilder({
   onSelectSuggestedAction,
   onConvertToAction,
   disabled = false,
+  pendingActionId = null,
 }: UIBuilderProps) {
   // Sort widgets by position and order
   const visibleWidgets = widgets
@@ -106,6 +108,7 @@ export function UIBuilder({
               });
             }}
             disabled={disabled}
+            pendingActionId={pendingActionId}
           />
         );
 

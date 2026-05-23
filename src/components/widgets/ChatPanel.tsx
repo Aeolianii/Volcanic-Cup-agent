@@ -33,9 +33,9 @@ export function ChatPanel({
     setInput("");
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       handleSend();
     }
   };
@@ -48,16 +48,19 @@ export function ChatPanel({
         {messages.length === 0 && (
           <p className="text-parchment-500 text-sm italic">开始角色扮演对话...</p>
         )}
-        {messages.map((msg) => {
-          const isOwn = msg.sender_id === currentPlayerId;
-          const isGM = msg.sender_type === "gm";
+        {messages.map((message) => {
+          const isOwn = message.sender_id === currentPlayerId;
+          const isGM = message.sender_type === "gm";
+          const senderLabel = isGM ? "游戏主持" : message.sender_name;
 
           return (
-            <div key={msg.id} className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
+            <div key={message.id} className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
               {!isOwn && (
-                <span className={`text-xs mb-0.5 ${isGM ? "text-amber-400" : "text-blue-400"}`}>
-                  {msg.sender_name}
-                  {isGM && " [GM]"}
+                <span
+                  translate="no"
+                  className={`text-xs mb-0.5 ${isGM ? "text-amber-400" : "text-blue-400"}`}
+                >
+                  {senderLabel}
                 </span>
               )}
               <div
@@ -69,11 +72,11 @@ export function ChatPanel({
                     : "bg-midnight-700/50 border border-midnight-500 text-parchment-200"
                 }`}
               >
-                {msg.content}
+                {message.content}
               </div>
-              {msg.is_action_hint && onConvertToAction && (
+              {message.is_action_hint && onConvertToAction && (
                 <button
-                  onClick={() => onConvertToAction(msg.id)}
+                  onClick={() => onConvertToAction(message.id)}
                   className="text-xs text-amber-500 hover:text-amber-300 mt-1 underline"
                 >
                   {actionHint?.suggestion || "转为正式行动"}
@@ -94,7 +97,7 @@ export function ChatPanel({
         <input
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(event) => setInput(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="输入 RP 对话..."
           className="input-field text-sm flex-1"

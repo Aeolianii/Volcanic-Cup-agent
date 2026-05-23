@@ -19,7 +19,12 @@ export const mockAIProvider: AIProvider = {
 
   async generateNarrative(context: GMContext): Promise<GMNarrativeOutput> {
     const { current_turn, current_chapter, story_bible, world_state_summary } = context;
+    if (context.last_action) {
+      return buildActionNarrative(context);
+    }
+
     const eventTitle = story_bible.current_chapter_events[0] || "当前事件";
+    const activeEvents = world_state_summary.active_events.map(formatEventLabel);
     const npc = story_bible.npcs[0];
     const setting = story_bible.world_setting || story_bible.title;
 
@@ -27,10 +32,10 @@ export const mockAIProvider: AIProvider = {
       narration: [
         `**第 ${current_chapter} 章 · 第 ${current_turn} 回合**`,
         current_turn === 0
-          ? `${story_bible.title}正式开场。${setting}`
-          : `${eventTitle}正在推动局势变化。每个角色的选择都会影响真相、关系和最终结局。`,
-        world_state_summary.active_events.length > 0
-          ? `当前公开事件：${world_state_summary.active_events.join("、")}`
+          ? `${story_bible.title}正式开场。\n\n${setting}`
+          : `${formatEventLabel(eventTitle)}正在推动局势变化。每个角色的选择都会影响真相、关系和最终结局。`,
+        activeEvents.length > 0
+          ? `当前公开事件：${activeEvents.join("、")}`
           : "公开局势仍在酝酿，暂时没有新的公开事件被确认。",
         npc ? `${npc.name}正在观察玩家的反应，可能掌握一部分关键线索。` : "",
       ].filter(Boolean).join("\n\n"),
@@ -97,9 +102,63 @@ export const mockAIProvider: AIProvider = {
   },
 };
 
+function buildActionNarrative(context: GMContext): GMNarrativeOutput {
+  const action = context.last_action!;
+  const activeEvents = context.world_state_summary.active_events.map(formatEventLabel);
+  const metricChanges = action.state_updates
+    .filter((update) => update.type === "metric_change" && update.metric && update.delta)
+    .map((update) => `${update.metric}${Number(update.delta) > 0 ? "上升" : "下降"}${Math.abs(Number(update.delta))}`);
+  const triggered = action.triggered_events.map((event) => `新的事件被推到台前：${event.title}。`);
+  const outcome = action.success
+    ? buildActionOutcome(action)
+    : `${action.target_name}没有给出有效回应，局势反而变得更紧。你需要换一种方式继续施压或寻找旁证。`;
+
+  return {
+    narration: [
+      `**第 ${context.current_chapter} 章 · 第 ${context.current_turn} 回合**`,
+      `${action.actor_name}${action.success ? "完成了" : "尝试了"}“${action.action_label}”：${action.raw_input || action.public_result}`,
+      outcome,
+      metricChanges.length > 0 ? `局势变化：${metricChanges.join("，")}。` : "",
+      triggered.join("\n"),
+      activeEvents.length > 0 ? `当前公开事件：${activeEvents.join("、")}。` : "",
+    ].filter(Boolean).join("\n\n"),
+    suggested_events: action.triggered_events.map((event) => event.id),
+    revealed_information: action.success
+      ? [{
+          type: "fact",
+          title: "行动结果",
+          content: action.public_result,
+          visible_to: [action.actor_id],
+        }]
+      : [],
+    suggested_actions: buildSuggestedActions(context),
+    mood: action.success ? "investigative" : "tense",
+  };
+}
+
+function buildActionOutcome(action: NonNullable<GMContext["last_action"]>): string {
+  if (action.target === "self_goal" || action.method === "reflect" || action.intent === "plan_next_move") {
+    return "你把公开目标、秘密目标和当前公开事件重新梳理了一遍。它不会直接产出案发线索，也不会推进真相进度，但能帮助你判断下一步该优先试探谁、调查哪里，以及哪些筹码暂时不该暴露。";
+  }
+
+  if (action.action_type === "talk" && action.target_name.includes("大法师")) {
+    return "大法师没有把答案直接交到你手里。他承认圣杯失窃前后，圣殿的魔力潮汐和守夜记录同时出现异常，这不该是普通窃案能造成的。他还刻意提醒你：真正值得追问的不是“谁拿走了圣杯”，而是谁能让圣殿记录一起失真。调查方向因此转向圣殿内部的仪式记录、主教的封存档案，以及昨夜被改写的时间线。";
+  }
+
+  if (action.action_type === "talk") {
+    return `${action.target_name}给出了可继续追问的回应。你没有得到完整答案，但已经知道下一步应该围绕证词矛盾、时间线和隐藏动机继续逼近。`;
+  }
+
+  if (["investigate", "search", "track", "eavesdrop", "interrogate", "decode"].includes(action.action_type)) {
+    return `这次${action.action_label}带来了可验证的线索。它还不足以揭开真相，但已经缩小了嫌疑范围，并把后续行动指向更具体的地点或人物。`;
+  }
+
+  return `${action.public_result} 这个结果改变了场上的压力分布，其他角色接下来会围绕你的选择调整态度。`;
+}
+
 function buildSuggestedActions(context: GMContext): GMNarrativeOutput["suggested_actions"] {
   const npc = context.story_bible.npcs[0];
-  const activeEvent = context.story_bible.current_chapter_events[0] || "current_thread";
+  const activeEvent = context.story_bible.current_chapter_events[0] || "当前事件";
   const actions: GMNarrativeOutput["suggested_actions"] = [
     {
       label: "调查当前线索",
@@ -145,6 +204,16 @@ function inferTarget(input: string, currentLocation: string): string {
     [/操场/, "sports_field"],
     [/食堂/, "cafeteria"],
     [/走廊/, "corridor"],
+    [/圣殿|神殿/, "temple"],
+    [/圣坛|祭坛/, "underground_altar"],
+    [/地下室|教堂地下室/, "cathedral_basement"],
+    [/王座|大厅/, "throne_room"],
+    [/皇家图书馆|图书馆/, "royal_library"],
+    [/街道|市场/, "city_streets"],
+    [/酒馆/, "tavern"],
+    [/大法师/, "npc_archmage"],
+    [/国王|老国王/, "npc_old_king"],
+    [/主教/, "npc_bishop"],
     [/实验室/, "research_lab"],
     [/指挥|甲板/, "command_deck"],
     [/档案|资料/, "archive"],
@@ -153,4 +222,8 @@ function inferTarget(input: string, currentLocation: string): string {
   ];
 
   return targets.find(([pattern]) => pattern.test(input))?.[1] || currentLocation || "current_location";
+}
+
+function formatEventLabel(value: string): string {
+  return value.replace(/_/g, " ");
 }

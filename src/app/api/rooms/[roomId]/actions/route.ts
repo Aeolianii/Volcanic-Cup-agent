@@ -35,6 +35,21 @@ function toStructuredAction(parsed: ParsedAction, rawInput: string, actorId: str
   };
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("AI action parser timeout")), timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { roomId: string } }
@@ -70,18 +85,22 @@ export async function POST(
       });
 
       try {
-        const parsed = await getAIProvider().parseAction(rawInput, {
-          player_id: body.player_id,
-          player_role: room.players.find((p) => p.player_id === body.player_id)?.role?.name || "",
-          current_location: body.current_location || "",
-          known_facts: body.known_facts || [],
-          active_events: worldState.events.filter((e) => e.triggered).map((e) => e.event_id),
-        });
+        const parsed = await withTimeout(
+          getAIProvider().parseAction(rawInput, {
+            player_id: body.player_id,
+            player_role: room.players.find((p) => p.player_id === body.player_id)?.role?.name || "",
+            current_location: body.current_location || "",
+            known_facts: body.known_facts || [],
+            active_events: worldState.events.filter((e) => e.triggered).map((e) => e.event_id),
+          }),
+          1500
+        );
         structuredAction = toStructuredAction(parsed, rawInput, body.player_id);
       } catch {
         structuredAction = fallbackAction;
       }
     }
+    structuredAction = normalizeActionTarget(structuredAction, bible, worldState);
 
     // Process through Rule Engine
     const result = processPlayerAction(structuredAction, worldState, bible);
@@ -100,12 +119,26 @@ export async function POST(
     }
     roomManager.updateWorldState(roomId, worldState);
 
-    // Check endings
-    const endingResult = checkEndings(worldState, bible);
-
-    // Generate GM narrative
+    // Check endings and generate GM narrative in parallel after the state is settled.
     const gmPhase = triggeredEvents.length > 0 ? "event_narration" : "turn_narration";
-    const gmNarrative = await generateGMNarrative(bible, worldState, getAIProvider(), gmPhase);
+    const [endingResult, gmNarrative] = await Promise.all([
+      Promise.resolve(checkEndings(worldState, bible)),
+      generateGMNarrative(
+        bible,
+        worldState,
+        getAIProvider(),
+        gmPhase,
+        {
+          action: structuredAction,
+          result,
+          triggered_events: triggeredEvents.map((item) => ({
+            id: item.event.id,
+            title: item.event.title,
+            description: item.event.description,
+          })),
+        }
+      ),
+    ]);
 
     // Add GM message
     const gmMessage = {
@@ -140,4 +173,42 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+function normalizeActionTarget(
+  action: StructuredAction,
+  bible: { npcs: Array<{ id: string; name: string }>; roles: Array<{ id: string; name: string }>; events: Array<{ id: string; title: string }> },
+  worldState: { locations: Array<{ id: string; name: string; connected_locations: string[]; present_characters: string[] }> }
+): StructuredAction {
+  const target = String(action.target || "");
+  const aliases: Record<string, string> = {
+    archmage: "npc_archmage",
+    old_king: "npc_old_king",
+    bishop: "npc_bishop",
+    prince: "role_prince",
+    saintess: "role_saintess",
+    assassin: "role_assassin",
+    knight: "role_knight",
+  };
+
+  if (aliases[target]) return { ...action, target: aliases[target] };
+
+  if (target === "connected_location") {
+    const currentLocation = worldState.locations.find((location) =>
+      location.present_characters.includes(action.actor_id)
+    );
+    const nextLocationId = currentLocation?.connected_locations?.[0];
+    return { ...action, target: nextLocationId || "current_location" };
+  }
+
+  const npc = bible.npcs.find((item) => item.name === target || item.id === target);
+  if (npc) return { ...action, target: npc.id };
+
+  const role = bible.roles.find((item) => item.name === target || item.id === target);
+  if (role) return { ...action, target: role.id };
+
+  const event = bible.events.find((item) => item.title === target || item.id === target);
+  if (event) return { ...action, target: event.id };
+
+  return action;
 }

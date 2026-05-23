@@ -6,7 +6,18 @@ import { selectRulePacks } from "./rulePackSelector";
 import { generateMetrics } from "./metricGenerator";
 import { generateUIConfig } from "./uiConfigGenerator";
 
-type GenreProfile = "campus" | "romance" | "political" | "sci_fi" | "wuxia" | "generic";
+type GenreProfile =
+  | "campus"
+  | "romance"
+  | "transmigration"
+  | "comedy"
+  | "workplace"
+  | "mystery"
+  | "horror"
+  | "political"
+  | "sci_fi"
+  | "wuxia"
+  | "generic";
 
 export async function generateStoryBible(seed: StorySeed): Promise<StoryBible> {
   const analysis = analyzeStory(seed);
@@ -76,6 +87,11 @@ function allSeedText(seed: StorySeed): string {
 
 function getProfile(seed: StorySeed): GenreProfile {
   const text = allSeedText(seed);
+  if (/穿越|重生|异世界|回到|魂穿|时空|古穿今|今穿古/.test(text)) return "transmigration";
+  if (/欢乐|喜剧|轻喜剧|搞笑|沙雕|爆笑|整活|乌龙/.test(text)) return "comedy";
+  if (/职场|公司|项目|同事|老板|客户|汇报|创业|办公室/.test(text)) return "workplace";
+  if (/推理|侦探|案件|凶案|线索|嫌疑|证词|密室|破案/.test(text)) return "mystery";
+  if (/恐怖|怪谈|灵异|惊悚|诡异|逃生|规则怪谈/.test(text)) return "horror";
   if (/校园|高中|大学|同桌|学生|学生会|社团|班级|毕业|校草|校花|青春|青梅竹马/.test(text)) return "campus";
   if (/言情|恋爱|爱情|暗恋|复合|告白|表白|前任|暧昧/.test(text)) return "romance";
   if (/科幻|星际|空间站|飞船|公司|殖民|AI|机器人|赛博/.test(text)) return "sci_fi";
@@ -279,6 +295,11 @@ function getStartingLocation(seed: StorySeed, index: number): string {
   const locationsByProfile: Record<GenreProfile, string[]> = {
     campus: ["classroom", "student_council_room", "library", "club_room", "sports_field", "cafeteria"],
     romance: ["meeting_place", "quiet_corner", "phone_chat", "shared_memory_place", "public_square"],
+    transmigration: ["arrival_place", "identity_scene", "rule_archive", "market", "choice_crossroads"],
+    comedy: ["mistake_scene", "public_stage", "backstage", "cleanup_corner", "group_chat"],
+    workplace: ["meeting_room", "workstation", "archive", "client_site", "presentation_room"],
+    mystery: ["case_scene", "archive", "interview_room", "hidden_corner", "evidence_board"],
+    horror: ["entrance", "safe_room", "rule_board", "forbidden_area", "exit_path"],
     political: ["council_hall", "archive", "garden", "gate", "market"],
     sci_fi: ["command_deck", "research_lab", "hangar", "medbay", "market"],
     wuxia: ["inn", "training_ground", "ancestral_hall", "riverbank", "market"],
@@ -322,7 +343,83 @@ function generateEvents(seed: StorySeed, adaptedEvents: string[]): StoryEvent[] 
   const ending = seed.ending.trim();
   const stabilityMetric = stabilityMetricId(seed);
   const pressureMetric = pressureMetricId(seed);
-  const generatedEvents = adaptedEvents.filter(Boolean);
+  const profile = getProfile(seed);
+  const generatedEvents = sanitizeEventSuggestions(adaptedEvents, profile);
+  const eventTrack = getEventTrack(profile);
+
+  if (eventTrack) {
+    return eventTrack.map((node, index) => ({
+      id: node.id,
+      title: generatedEvents[index - 1] || (index === 0 ? core : node.title),
+      description:
+        index === 0
+          ? seed.opening || node.description(world, core, ending)
+          : node.description(world, core, ending),
+      trigger:
+        index === 0
+          ? { type: "turn_reached", conditions: [{ field: "turn", operator: "gte", value: 1 }] }
+          : node.trigger,
+      effects: node.effects(stabilityMetric),
+      visibility: node.visibility,
+      triggered: false,
+      chapter_id: `chapter_${Math.min(3, Math.floor(index / 2) + 1)}`,
+    }));
+  }
+
+  if (profile === "campus" || profile === "romance") {
+    return [
+      {
+        id: "inciting_incident",
+        title: core,
+        description: seed.opening || `${world}里出现了一场关系风波，误会开始在公开场合扩散。`,
+        trigger: { type: "turn_reached", conditions: [{ field: "turn", operator: "gte", value: 1 }] },
+        effects: [{ type: "modify_metric", target: "suspicion", value: 10 }],
+        visibility: "public",
+        triggered: false,
+        chapter_id: "chapter_1",
+      },
+      {
+        id: "message_clue",
+        title: generatedEvents[0] || "聊天记录疑点",
+        description: `围绕“${core}”的细节开始被重新核对。聊天记录、时间线和在场人的说法之间出现了不一致。`,
+        trigger: { type: "action_performed", conditions: [{ field: "event_inciting_incident", operator: "exists", value: true }] },
+        effects: [{ type: "modify_metric", target: "truth_progress", value: 15 }],
+        visibility: "public",
+        triggered: false,
+        chapter_id: "chapter_1",
+      },
+      {
+        id: "relationship_pressure",
+        title: generatedEvents[1] || "关系压力升高",
+        description: "当事人开始在澄清、沉默和保护彼此之间摇摆。越多人围观，真实心意越难直接说出口。",
+        trigger: { type: "composite", conditions: [{ field: "event_message_clue", operator: "exists", value: true }, { field: "truth_progress", operator: "gte", value: 30 }], operator: "and" },
+        effects: [{ type: "modify_metric", target: "trust", value: -5 }, { type: "modify_metric", target: "suspicion", value: 10 }],
+        visibility: "public",
+        triggered: false,
+        chapter_id: "chapter_2",
+      },
+      {
+        id: "private_confession_window",
+        title: generatedEvents[2] || "私下坦白机会",
+        description: "关键人物有机会避开围观，把误会背后的真实原因和未说出口的心意讲清楚。",
+        trigger: { type: "composite", conditions: [{ field: "event_relationship_pressure", operator: "exists", value: true }, { field: "truth_progress", operator: "gte", value: 45 }], operator: "and" },
+        effects: [{ type: "modify_metric", target: "trust", value: 15 }],
+        visibility: "conditional",
+        triggered: false,
+        chapter_id: "chapter_2",
+      },
+      {
+        id: "public_response",
+        title: "公开回应",
+        description: ending ? `局势逼近结局方向：“${ending}”。角色们必须决定是公开澄清、私下和解，还是继续保护某个秘密。` : "流言已经发酵到必须回应的程度。每个人此前的选择都会影响关系能否被修复。",
+        trigger: { type: "composite", conditions: [{ field: "event_private_confession_window", operator: "exists", value: true }, { field: stabilityMetric, operator: "lte", value: 45 }], operator: "and" },
+        effects: [{ type: "modify_metric", target: stabilityMetric, value: -10 }, { type: "modify_metric", target: "suspicion", value: 10 }],
+        visibility: "public",
+        triggered: false,
+        chapter_id: "chapter_3",
+      },
+    ];
+  }
 
   return [
     {
@@ -376,6 +473,136 @@ function generateEvents(seed: StorySeed, adaptedEvents: string[]): StoryEvent[] 
       chapter_id: "chapter_3",
     },
   ];
+}
+
+function sanitizeEventSuggestions(events: string[], profile: GenreProfile): string[] {
+  const forbidden =
+    profile === "campus" || profile === "romance"
+      ? /死亡|死|尸|谋杀|刺杀|暗杀|血|神秘事件|离奇|势力|站队|战队|权力|王国|宫廷/
+      : /$^/;
+
+  return events
+    .map((event) => event.trim())
+    .filter((event) => event && !forbidden.test(event));
+}
+
+type EventTrackNode = {
+  id: string;
+  title: string;
+  description: (world: string, core: string, ending: string) => string;
+  trigger: StoryEvent["trigger"];
+  effects: (stabilityMetric: string) => StoryEvent["effects"];
+  visibility: StoryEvent["visibility"];
+};
+
+function getEventTrack(profile: GenreProfile): EventTrackNode[] | null {
+  const after = (eventId: string): StoryEvent["trigger"] => ({
+    type: "composite",
+    conditions: [{ field: `event_${eventId}`, operator: "exists", value: true }],
+    operator: "and",
+  });
+  const progressAfter = (eventId: string, progress: number): StoryEvent["trigger"] => ({
+    type: "composite",
+    conditions: [
+      { field: `event_${eventId}`, operator: "exists", value: true },
+      { field: "truth_progress", operator: "gte", value: progress },
+    ],
+    operator: "and",
+  });
+
+  const tracks: Partial<Record<GenreProfile, EventTrackNode[]>> = {
+    campus: relationshipTrack(),
+    romance: relationshipTrack(),
+    transmigration: [
+      node("arrival", "初到异世", (world) => `${world}的规则突然压到角色身上，原本的身份和常识都不再可靠。`, after("arrival"), [["suspicion", 10]], "public"),
+      node("identity_mistake", "身份误认", (_world, core) => `围绕“${core}”，角色被迫扮演或澄清一个并不完全属于自己的身份。`, after("arrival"), [["truth_progress", 10]], "public"),
+      node("rule_learning", "规则适应", () => "角色逐渐理解新世界的规则，也发现某些选择会改变原本剧情。", progressAfter("identity_mistake", 20), [["truth_progress", 15]], "public"),
+      node("plot_deviation", "剧情偏移", () => "一个原本应该发生的节点被改变，新的后果开始追上所有人。", progressAfter("rule_learning", 35), [["faction_power", 10]], "conditional"),
+      node("choice_point", "去留抉择", (_world, _core, ending) => ending ? `结局方向逼近：“${ending}”。角色必须选择回归、留下或承担改写剧情的代价。` : "角色必须选择回归、留下或承担改写剧情的代价。", progressAfter("plot_deviation", 50), [["situation_stability", -10]], "public"),
+    ],
+    comedy: [
+      node("comic_mistake", "乌龙开场", (_world, core) => `“${core}”被所有人用错误方式理解，局面开始失控。`, after("comic_mistake"), [["suspicion", 5]], "public"),
+      node("bad_explanation", "越解释越黑", () => "角色试图补救，但每一次解释都制造了新的误会。", after("comic_mistake"), [["truth_progress", 10]], "public"),
+      node("group_scheme", "集体整活", () => "众人决定用一个看似聪明的办法收场，风险也随之变大。", progressAfter("bad_explanation", 20), [["faction_power", 10]], "public"),
+      node("public_crash", "公开翻车", () => "所有补救方案在公开场合撞到一起，必须现场圆回来。", progressAfter("group_scheme", 35), [["suspicion", 15]], "public"),
+      node("comic_resolution", "爆笑收束", (_world, _core, ending) => ending ? `局面朝“${ending}”收束，但每个人都留下了足够难忘的黑历史。` : "误会被拆开，关系反而因为这场闹剧更近了一步。", progressAfter("public_crash", 45), [["situation_stability", 10]], "public"),
+    ],
+    workplace: [
+      node("briefing", "任务压力出现", (_world, core) => `围绕“${core}”，项目目标明确，但资源、时间或信息明显不足。`, after("briefing"), [["suspicion", 5]], "public"),
+      node("resource_gap", "资源缺口", () => "团队发现关键资源并不够用，必须重新协调优先级。", after("briefing"), [["faction_power", 10]], "public"),
+      node("coordination_issue", "协作摩擦", () => "不同角色的目标和顾虑开始暴露，协作成本上升。", progressAfter("resource_gap", 20), [["trust", -5]], "public"),
+      node("private_agenda", "隐藏顾虑浮现", () => "有人没有说出的真实压力成为项目推进的关键变量。", progressAfter("coordination_issue", 35), [["truth_progress", 15]], "conditional"),
+      node("presentation", "公开汇报", (_world, _core, ending) => ending ? `汇报节点逼近：“${ending}”。成果、责任和真实问题必须被摆上台面。` : "成果、责任和真实问题必须被摆上台面。", progressAfter("private_agenda", 50), [["situation_stability", -10]], "public"),
+    ],
+    mystery: [
+      node("case_open", "异常发生", (_world, core) => `“${core}”成为所有调查的起点，现场留下的第一批信息互相矛盾。`, after("case_open"), [["suspicion", 10]], "public"),
+      node("first_clue", "线索收集", () => "玩家开始整理现场、证词和时间线，真相进度被推进。", after("case_open"), [["truth_progress", 15]], "public"),
+      node("testimony_conflict", "证词矛盾", () => "不同角色的说法无法同时成立，隐藏动机开始浮现。", progressAfter("first_clue", 25), [["suspicion", 10]], "public"),
+      node("key_evidence", "关键证据", () => "一项证据把分散的线索连接起来，但公开它会改变所有人的处境。", progressAfter("testimony_conflict", 45), [["truth_progress", 20]], "conditional"),
+      node("deduction", "真相还原", (_world, _core, ending) => ending ? `结局方向逼近：“${ending}”。角色必须决定如何公开推理结果。` : "角色必须决定如何公开推理结果，以及谁来承担真相的代价。", progressAfter("key_evidence", 65), [["situation_stability", -10]], "public"),
+    ],
+    horror: [
+      node("omen", "异常征兆", (world) => `${world}出现了第一处无法解释的异常，安全感开始崩塌。`, after("omen"), [["suspicion", 10]], "public"),
+      node("first_rule", "规则发现", () => "角色发现异常并非随机发生，某些行为会触发明确代价。", after("omen"), [["truth_progress", 10]], "public"),
+      node("rule_cost", "代价出现", () => "规则的代价第一次真正落到角色身上，信任开始动摇。", progressAfter("first_rule", 25), [["trust", -10]], "public"),
+      node("survival_choice", "生存选择", () => "继续探索、互相保护或牺牲某些利益，变成无法回避的问题。", progressAfter("rule_cost", 40), [["situation_stability", -15]], "conditional"),
+      node("escape_or_fall", "逃离或沉沦", (_world, _core, ending) => ending ? `结局方向逼近：“${ending}”。最后的规则要求角色支付代价。` : "最后的规则被揭开，角色必须决定谁承担代价。", progressAfter("survival_choice", 55), [["suspicion", 15]], "public"),
+    ],
+  };
+
+  return tracks[profile] || null;
+}
+
+function relationshipTrack(): EventTrackNode[] {
+  return [
+    node("inciting_incident", "流言发酵", (_world, core) => `“${core}”开始扩散，角色之间的关系被迫暴露在公开目光下。`, afterTurnOne(), [["suspicion", 10]], "public"),
+    node("message_clue", "聊天记录疑点", (_world, core) => `围绕“${core}”的细节开始被重新核对。聊天记录、时间线和在场人的说法之间出现了不一致。`, afterEvent("inciting_incident"), [["truth_progress", 15]], "public"),
+    node("relationship_pressure", "关系压力升高", () => "当事人开始在澄清、沉默和保护彼此之间摇摆。越多人围观，真实心意越难直接说出口。", afterProgress("message_clue", 30), [["trust", -5], ["suspicion", 10]], "public"),
+    node("private_confession_window", "私下坦白机会", () => "关键人物有机会避开围观，把误会背后的真实原因和未说出口的心意讲清楚。", afterProgress("relationship_pressure", 45), [["trust", 15]], "conditional"),
+    node("public_response", "公开回应", (_world, _core, ending) => ending ? `局势逼近结局方向：“${ending}”。角色们必须决定是公开澄清、私下和解，还是继续保护某个秘密。` : "流言已经发酵到必须回应的程度。每个人此前的选择都会影响关系能否被修复。", afterProgress("private_confession_window", 55), [["situation_stability", -10], ["suspicion", 10]], "public"),
+  ];
+}
+
+function node(
+  id: string,
+  title: string,
+  description: EventTrackNode["description"],
+  trigger: StoryEvent["trigger"],
+  metricDeltas: Array<[string, number]>,
+  visibility: StoryEvent["visibility"]
+): EventTrackNode {
+  return {
+    id,
+    title,
+    description,
+    trigger,
+    effects: (stabilityMetric) =>
+      metricDeltas.map(([target, value]) => ({
+        type: "modify_metric",
+        target: target === "situation_stability" ? stabilityMetric : target,
+        value,
+      })),
+    visibility,
+  };
+}
+
+function afterTurnOne(): StoryEvent["trigger"] {
+  return { type: "turn_reached", conditions: [{ field: "turn", operator: "gte", value: 1 }] };
+}
+
+function afterEvent(eventId: string): StoryEvent["trigger"] {
+  return { type: "action_performed", conditions: [{ field: `event_${eventId}`, operator: "exists", value: true }] };
+}
+
+function afterProgress(eventId: string, progress: number): StoryEvent["trigger"] {
+  return {
+    type: "composite",
+    conditions: [
+      { field: `event_${eventId}`, operator: "exists", value: true },
+      { field: "truth_progress", operator: "gte", value: progress },
+    ],
+    operator: "and",
+  };
 }
 
 function generateEndings(seed: StorySeed): Ending[] {
