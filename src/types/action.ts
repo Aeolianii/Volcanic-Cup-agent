@@ -57,7 +57,7 @@ export interface RuleResult {
 
 export interface StateUpdate {
   type: StateUpdateType;
-  target: string;
+  target?: string;
   fact_id?: string;
   metric?: string;
   delta?: number;

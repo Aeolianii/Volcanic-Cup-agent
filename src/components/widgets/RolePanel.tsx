@@ -32,7 +32,7 @@ export function RolePanel({ role }: RolePanelProps) {
         </div>
 
         <div>
-          <h4 className="text-xs text-red-500/80 uppercase tracking-wider mb-1">秘密目标</h4>
+          <h4 className="text-xs text-red-500/80 uppercase tracking-wider mb-1">秘密目标（仅你可见）</h4>
           <p className="text-sm text-red-300/80 italic">{role.secret_goal}</p>
         </div>
 

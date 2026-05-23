@@ -62,7 +62,7 @@ export function checkChapterTransition(
   const shouldTransition = conditionsMet && allKeyEventsTriggered && state.turn >= 3;
 
   return {
-    should_transition,
+    should_transition: shouldTransition,
     from_chapter: state.chapter,
     to_chapter: shouldTransition ? state.chapter + 1 : state.chapter,
     reason: shouldTransition

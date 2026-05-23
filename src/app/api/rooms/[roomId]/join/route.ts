@@ -18,7 +18,14 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({ success: true, room });
+    const bible = roomManager.getStoryBible(room.story_bible_id);
+    const availableRoles = bible?.roles.map((role) => ({
+      id: role.id,
+      name: role.name,
+      public_identity: role.public_identity,
+    })) ?? [];
+
+    return NextResponse.json({ success: true, room: { ...room, available_roles: availableRoles } });
   } catch (error) {
     return NextResponse.json(
       { success: false, error: String(error) },

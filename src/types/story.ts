@@ -2,6 +2,9 @@
 // Core Story Types — StorySeed, StoryBible, Roles, NPCs, etc.
 // ============================================================
 
+import type { Role, NPC } from "./role";
+import type { Metric, StoryEvent, Ending } from "./metric";
+
 export interface StorySeed {
   genre: string;
   opening: string;

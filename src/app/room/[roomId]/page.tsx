@@ -12,8 +12,16 @@ export default function RoomPage() {
   const roomId = params.roomId as string;
 
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
-  const [playerId] = useState(() => localStorage.getItem("player_id") || `player_${Date.now()}`);
-  const [playerName] = useState(() => localStorage.getItem("player_name") || "冒险者");
+  const [playerId] = useState(() =>
+    typeof window !== "undefined"
+      ? localStorage.getItem("player_id") || `player_${Date.now()}`
+      : `player_${Date.now()}`
+  );
+  const [playerName] = useState(() =>
+    typeof window !== "undefined"
+      ? localStorage.getItem("player_name") || "冒险者"
+      : "冒险者"
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionFeedback, setActionFeedback] = useState("");
@@ -32,6 +40,9 @@ export default function RoomPage() {
         }
 
         const room: Room = data.room;
+        if (data.story_bible) {
+          dispatch({ type: "SET_STORY_BIBLE", bible: data.story_bible });
+        }
 
         // If player not in room, try to join
         if (!room.players.some((p: { player_id: string }) => p.player_id === playerId)) {
@@ -117,7 +128,8 @@ export default function RoomPage() {
         dispatch({ type: "SET_PLAYER_VIEW", view: data.player_view });
         // Add GM opening narration if first view
         if (state.chatMessages.length === 0) {
-          const openingContent = data.player_view?.active_events?.[0]?.description || "";
+          const openingContent =
+            data.gm_narrative?.narration || data.player_view?.active_events?.[0]?.description || "";
           if (openingContent) {
             dispatch({
               type: "ADD_CHAT_MESSAGE",

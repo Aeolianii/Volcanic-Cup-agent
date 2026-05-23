@@ -25,9 +25,10 @@ export function EventPanel({ events, allEvents }: EventPanelProps) {
       <div className="space-y-2">
         {displayEvents.map((event) => {
           const isActive = "triggered" in event ? event.triggered : true;
+          const eventKey = "id" in event ? event.id : event.event_id;
           return (
             <div
-              key={event.id || event.event_id}
+              key={eventKey}
               className={`p-2 rounded border text-sm ${
                 isActive
                   ? "border-amber-600/50 bg-amber-900/10"

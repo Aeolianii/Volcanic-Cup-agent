@@ -6,7 +6,34 @@ import { applyUpdates } from "@/engine/worldStateEngine";
 import { checkEventTriggers } from "@/engine/eventTriggerSystem";
 import { checkEndings } from "@/engine/endingJudge";
 import { generateGMNarrative } from "@/engine/aiGM";
-import { mockAIProvider } from "@/mock/mockAIProvider";
+import { getAIProvider } from "@/lib/aiProvider";
+import type { ActionType, ParsedAction, StructuredAction } from "@/types";
+
+const VALID_ACTION_TYPES: ActionType[] = [
+  "talk", "persuade", "threaten", "deceive", "ally", "betray", "confess",
+  "investigate", "search", "track", "eavesdrop", "interrogate", "decode",
+  "command", "summon_meeting", "gain_support", "coup", "impeach", "appoint",
+  "attack", "assassinate", "duel", "ambush", "defend",
+  "buy", "trade", "steal", "transport", "build",
+];
+
+function toStructuredAction(parsed: ParsedAction, rawInput: string, actorId: string): StructuredAction {
+  const actionType = VALID_ACTION_TYPES.includes(parsed.action_type as ActionType)
+    ? (parsed.action_type as ActionType)
+    : "investigate";
+
+  return {
+    actor_id: actorId,
+    actor_type: "player",
+    action_source: "free_action",
+    action_type: actionType,
+    target: parsed.target || "unknown",
+    method: parsed.method || "direct",
+    intent: parsed.intent || actionType,
+    risk_level: parsed.risk_level || "medium",
+    raw_input: rawInput,
+  };
+}
 
 export async function POST(
   request: NextRequest,
@@ -28,7 +55,7 @@ export async function POST(
     }
 
     // Parse action based on source
-    let structuredAction;
+    let structuredAction: StructuredAction;
     if (body.action_source === "suggested_action") {
       structuredAction = parseSuggestedAction(
         body.label || body.raw_input,
@@ -36,10 +63,24 @@ export async function POST(
         body.suggestion || body
       );
     } else {
-      structuredAction = parsePlayerAction(body.raw_input || body.content, body.player_id, {
+      const rawInput = body.raw_input || body.content || "";
+      const fallbackAction = parsePlayerAction(rawInput, body.player_id, {
         currentLocation: body.current_location,
         knownFacts: body.known_facts,
       });
+
+      try {
+        const parsed = await getAIProvider().parseAction(rawInput, {
+          player_id: body.player_id,
+          player_role: room.players.find((p) => p.player_id === body.player_id)?.role?.name || "",
+          current_location: body.current_location || "",
+          known_facts: body.known_facts || [],
+          active_events: worldState.events.filter((e) => e.triggered).map((e) => e.event_id),
+        });
+        structuredAction = toStructuredAction(parsed, rawInput, body.player_id);
+      } catch {
+        structuredAction = fallbackAction;
+      }
     }
 
     // Process through Rule Engine
@@ -64,7 +105,7 @@ export async function POST(
 
     // Generate GM narrative
     const gmPhase = triggeredEvents.length > 0 ? "event_narration" : "turn_narration";
-    const gmNarrative = await generateGMNarrative(bible, worldState, mockAIProvider, gmPhase);
+    const gmNarrative = await generateGMNarrative(bible, worldState, getAIProvider(), gmPhase);
 
     // Add GM message
     const gmMessage = {

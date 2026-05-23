@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { roomManager } from "@/lib/roomManager";
+import { DEMO_STORY_BIBLE } from "@/mock/demoStoryBible";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +12,10 @@ export async function POST(request: NextRequest) {
         { success: false, error: "缺少必要参数" },
         { status: 400 }
       );
+    }
+
+    if (!roomManager.getStoryBible(story_bible_id) && story_bible_id === DEMO_STORY_BIBLE.id) {
+      roomManager.setStoryBible(DEMO_STORY_BIBLE);
     }
 
     const room = roomManager.createRoom(story_bible_id, player_id, player_name);

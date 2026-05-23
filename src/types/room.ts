@@ -32,6 +32,7 @@ export interface PlayerView {
   known_facts: string[];
   known_npcs: string[];
   known_locations: string[];
+  evidence: string[];
   visible_metrics: VisibleMetric[];
   active_events: ActiveEvent[];
   suggested_actions: SuggestedAction[];

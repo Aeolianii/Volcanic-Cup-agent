@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DEMO_STORY_BIBLE } from "@/mock/demoStoryBible";
-import type { StoryBible, ValidationResult } from "@/types";
+import type { StoryBible } from "@/types";
+import type { ValidationResult } from "@/engine/storyBibleValidator";
 
 export default function GeneratePage() {
+  return (
+    <Suspense fallback={<div className="panel text-center">加载中...</div>}>
+      <GeneratePageContent />
+    </Suspense>
+  );
+}
+
+function GeneratePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demo") === "true";

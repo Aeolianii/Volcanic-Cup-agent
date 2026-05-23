@@ -5,7 +5,7 @@
 export interface AIProvider {
   generateStoryBible(seed: StorySeed): Promise<StoryBible>;
   generateNarrative(context: GMContext): Promise<GMNarrativeOutput>;
-  generateNPCAction(context: NPCContext): Promise<NPCActionOutput>;
+  generateNPCAction(context: NPCContext): Promise<NPCActionOutput | null>;
   generateEndingNarrative(context: EndingContext): Promise<string>;
   parseAction(input: string, context: ActionParseContext): Promise<ParsedAction>;
 }

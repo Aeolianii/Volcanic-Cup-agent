@@ -36,8 +36,8 @@ export function adaptStory(seed: StorySeed, analysis: StoryAnalysis): AdaptedSto
 
   // Add missing elements based on analysis
   if (!analysis.features.has_factions) {
-    additions.factions.push("王室派", "教会派", "民间势力");
-    additions.conflicts.push("王权与教权的争斗");
+    additions.factions.push("秩序维护者", "破局者", "观望者");
+    additions.conflicts.push("现有秩序与变革力量的冲突");
   }
 
   if (!analysis.features.has_mystery) {

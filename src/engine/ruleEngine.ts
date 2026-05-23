@@ -156,7 +156,7 @@ function calculateRoll(
 function generateSuccessUpdates(
   action: StructuredAction,
   updates: StateUpdate[],
-  _bible: StoryBible
+  bible: StoryBible
 ): void {
   // Add knowledge based on action
   updates.push({
@@ -209,7 +209,7 @@ function generateSuccessUpdates(
       });
       updates.push({
         type: "metric_change",
-        metric: "suspicion",
+        metric: findMetricId(bible, ["suspicion", "怀疑"]),
         delta: 10,
       });
     }
@@ -232,18 +232,18 @@ function generateSuccessUpdates(
 function generateFailureUpdates(
   action: StructuredAction,
   updates: StateUpdate[],
-  _bible: StoryBible
+  bible: StoryBible
 ): void {
   updates.push({
     type: "metric_change",
-    metric: "suspicion",
+    metric: findMetricId(bible, ["suspicion", "怀疑"]),
     delta: 5,
   });
 
   if (action.risk_level === "high") {
     updates.push({
       type: "metric_change",
-      metric: "kingdom_stability",
+      metric: findMetricId(bible, ["political_stability", "situation_stability", "稳定"]),
       delta: -5,
     });
   }
@@ -293,4 +293,14 @@ let actionCounter = 0;
 function generateActionId(): string {
   actionCounter++;
   return `action_${Date.now()}_${actionCounter}`;
+}
+
+function findMetricId(bible: StoryBible, candidates: string[]): string {
+  for (const candidate of candidates) {
+    const metric = bible.metrics.find(
+      (item) => item.id === candidate || item.id.includes(candidate) || item.label.includes(candidate)
+    );
+    if (metric) return metric.id;
+  }
+  return candidates[0];
 }

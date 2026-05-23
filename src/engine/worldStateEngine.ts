@@ -1,11 +1,15 @@
-import type { WorldState, StateUpdate, MetricState, EventState, RelationshipState, LocationState, PlayerKnowledge, NPCKnowledge } from "@/types";
+import type {
+  EventState,
+  LocationState,
+  MetricState,
+  NPCKnowledge,
+  PlayerKnowledge,
+  RelationshipState,
+  StateUpdate,
+  WorldState,
+} from "@/types";
 import type { StoryBible } from "@/types";
 
-/**
- * World State Engine
- * Maintains the single source of truth for world state.
- * ALL state changes MUST go through applyUpdates().
- */
 export function createWorldState(
   storyId: string,
   roomId: string,
@@ -21,65 +25,6 @@ export function createWorldState(
     triggered: false,
     resolved: false,
   }));
-
-  const locations: LocationState[] = [
-    {
-      id: "throne_room",
-      name: "王座大厅",
-      description: "辉煌的王座大厅，国王在此接见臣民",
-      present_characters: [],
-      connected_locations: ["temple", "cathedral_basement", "royal_library"],
-      flags: {},
-    },
-    {
-      id: "temple",
-      name: "圣殿",
-      description: "庄严的圣殿，圣杯曾在此供奉",
-      present_characters: [],
-      connected_locations: ["throne_room", "cathedral_basement", "underground_altar"],
-      flags: {},
-    },
-    {
-      id: "cathedral_basement",
-      name: "教堂地下室",
-      description: "阴暗潮湿的地下室，藏着不为人知的秘密",
-      present_characters: [],
-      connected_locations: ["temple", "underground_altar"],
-      flags: { restricted: true },
-    },
-    {
-      id: "underground_altar",
-      name: "地下祭坛",
-      description: "隐藏在教堂之下的古老祭坛",
-      present_characters: [],
-      connected_locations: ["temple", "cathedral_basement"],
-      flags: { hidden: true },
-    },
-    {
-      id: "royal_library",
-      name: "皇家图书馆",
-      description: "藏有大量古籍和秘密档案的图书馆",
-      present_characters: [],
-      connected_locations: ["throne_room"],
-      flags: {},
-    },
-    {
-      id: "city_streets",
-      name: "王城街道",
-      description: "繁华的王城街道，各色人等穿梭其中",
-      present_characters: [],
-      connected_locations: ["throne_room", "temple", "tavern"],
-      flags: {},
-    },
-    {
-      id: "tavern",
-      name: "乌鸦酒馆",
-      description: "雇佣兵和情报贩子聚集的酒馆",
-      present_characters: [],
-      connected_locations: ["city_streets"],
-      flags: {},
-    },
-  ];
 
   const relationships: RelationshipState[] = [];
 
@@ -116,13 +61,145 @@ export function createWorldState(
     metrics,
     events,
     relationships,
-    locations,
+    locations: createLocations(bible),
     knowledge_state: {
       player_knowledge: playerKnowledge,
       npc_knowledge: npcKnowledge,
       public_knowledge: [],
     },
   };
+}
+
+function createLocations(bible: StoryBible): LocationState[] {
+  const text = [
+    bible.title,
+    bible.world_setting.era,
+    bible.world_setting.location,
+    bible.world_setting.atmosphere,
+    ...bible.roles.map((role) => `${role.name} ${role.public_identity}`),
+  ].join(" ");
+  const profile = inferProfile(text);
+  const base = locationTemplates(profile);
+  const roleLocations = bible.roles.map((role) => role.starting_location);
+  const ids = [...new Set([...roleLocations, ...base.map((location) => location.id)])];
+
+  return ids.map((id, index) => {
+    const template = base.find((location) => location.id === id);
+    const fallbackName = formatLocationName(id);
+    const connected = ids.filter((otherId) => otherId !== id).slice(0, 3);
+    return {
+      id,
+      name: template?.name || fallbackName,
+      description:
+        template?.description ||
+        `${fallbackName}是${bible.world_setting.location || "当前舞台"}中的重要地点，可能藏着与事件相关的线索。`,
+      present_characters: [],
+      connected_locations: template?.connected_locations.filter((otherId) => ids.includes(otherId)) || connected,
+      flags: template?.flags || {},
+    };
+  });
+}
+
+function inferProfile(text: string): "campus" | "romance" | "political" | "sci_fi" | "wuxia" | "demo_fantasy" | "generic" {
+  if (/校园|高中|大学|班级|学生会|社团|毕业|校草|校花|青春/.test(text)) return "campus";
+  if (/言情|恋爱|爱情|暗恋|复合|告白/.test(text)) return "romance";
+  if (/科幻|星际|空间站|飞船|赛博|殖民/.test(text)) return "sci_fi";
+  if (/武侠|江湖|门派|朝廷/.test(text)) return "wuxia";
+  if (/圣杯|艾尔德兰|圣殿/.test(text)) return "demo_fantasy";
+  if (/王国|王室|贵族|宫廷|权谋/.test(text)) return "political";
+  return "generic";
+}
+
+function locationTemplates(profile: ReturnType<typeof inferProfile>): LocationState[] {
+  if (profile === "campus") {
+    return [
+      loc("classroom", "教室", "班级日常与流言最容易发酵的地方。", ["student_council_room", "library", "corridor"]),
+      loc("student_council_room", "学生会办公室", "存放活动资料、竞选记录和内部通知的房间。", ["classroom", "library", "club_room"], { restricted: true }),
+      loc("library", "图书馆", "安静的公共空间，适合查记录、谈条件或躲开围观。", ["classroom", "student_council_room", "club_room"]),
+      loc("club_room", "社团活动室", "社团排练、道具和私人聊天经常发生在这里。", ["library", "sports_field", "cafeteria"]),
+      loc("sports_field", "操场", "视野开阔，适合公开对质，也容易被更多人看见。", ["club_room", "cafeteria"]),
+      loc("cafeteria", "食堂", "消息传播最快的地方之一，非正式谈话常在这里发生。", ["sports_field", "classroom"]),
+      loc("corridor", "走廊", "课间人流密集，偶遇和偷听都可能发生。", ["classroom", "student_council_room"]),
+    ];
+  }
+
+  if (profile === "romance") {
+    return [
+      loc("meeting_place", "约定地点", "关系变化的关键场所，许多误会都从这里开始。", ["quiet_corner", "public_square"]),
+      loc("quiet_corner", "安静角落", "适合私下谈心，也适合隐藏真实情绪。", ["meeting_place", "shared_memory_place"]),
+      loc("shared_memory_place", "共同回忆地点", "承载过去情感的地方，可能触发关键坦白。", ["quiet_corner", "public_square"]),
+      loc("phone_chat", "聊天窗口", "线上消息留下了证据，也可能制造新的误解。", ["meeting_place"]),
+      loc("public_square", "公开场合", "任何表态都会被更多人看见。", ["meeting_place", "shared_memory_place"]),
+    ];
+  }
+
+  if (profile === "sci_fi") {
+    return [
+      loc("command_deck", "指挥甲板", "任务调度和权限控制的核心区域。", ["research_lab", "hangar"]),
+      loc("research_lab", "研究实验室", "异常数据、样本和实验记录集中在这里。", ["command_deck", "medbay"]),
+      loc("hangar", "机库", "出入、撤离和物资转运的关键区域。", ["command_deck", "market"]),
+      loc("medbay", "医疗舱", "伤情记录和生理数据可能揭示隐藏真相。", ["research_lab"]),
+      loc("market", "补给区", "非正式交易和底层消息在这里流动。", ["hangar"]),
+    ];
+  }
+
+  if (profile === "wuxia") {
+    return [
+      loc("inn", "客栈", "江湖消息汇聚之处。", ["market", "riverbank"]),
+      loc("training_ground", "演武场", "公开较量和门派试探常在这里发生。", ["ancestral_hall"]),
+      loc("ancestral_hall", "宗祠", "门规、旧案和身份秘密可能藏在此处。", ["training_ground", "riverbank"], { restricted: true }),
+      loc("riverbank", "河岸", "适合密谈、追踪和截获信件。", ["inn", "ancestral_hall"]),
+      loc("market", "市集", "人多眼杂，情报与交易并存。", ["inn"]),
+    ];
+  }
+
+  if (profile === "demo_fantasy") {
+    return [
+      loc("throne_room", "王座大厅", "辉煌的王座大厅，国王在此接见臣民。", ["temple", "royal_library", "city_streets"]),
+      loc("temple", "圣殿", "庄严的圣殿，圣杯曾在此供奉。", ["throne_room", "cathedral_basement", "underground_altar"]),
+      loc("cathedral_basement", "教堂地下室", "阴暗潮湿的地下室，藏着不为人知的秘密。", ["temple", "underground_altar"], { restricted: true }),
+      loc("underground_altar", "地下祭坛", "隐藏在教堂之下的古老祭坛。", ["temple", "cathedral_basement"], { hidden: true }),
+      loc("royal_library", "皇家图书馆", "藏有大量古籍和秘密档案的图书馆。", ["throne_room"]),
+      loc("city_streets", "王城街道", "繁华的王城街道，各色人等穿梭其中。", ["throne_room", "temple", "tavern"]),
+      loc("tavern", "乌鸦酒馆", "雇佣兵和情报贩子聚集的酒馆。", ["city_streets"]),
+    ];
+  }
+
+  if (profile === "political") {
+    return [
+      loc("council_hall", "议事厅", "公开讨论和权力交锋的中心。", ["archive", "garden", "gate"]),
+      loc("archive", "档案室", "旧记录、证据和被封存的文件集中在这里。", ["council_hall"], { restricted: true }),
+      loc("garden", "庭院", "看似轻松的社交场，常发生私下试探。", ["council_hall", "gate"]),
+      loc("gate", "正门", "消息、人员和外部压力从这里进入。", ["garden", "market"]),
+      loc("market", "市集", "民意与流言传播最快的地方。", ["gate"]),
+    ];
+  }
+
+  return [
+    loc("central_place", "核心现场", "事件发生或影响最集中的地点。", ["meeting_place", "archive"]),
+    loc("meeting_place", "会面地点", "角色可以公开对话或私下协商的地方。", ["central_place", "hidden_corner"]),
+    loc("archive", "资料点", "记录、证据和旧线索集中在这里。", ["central_place"], { restricted: true }),
+    loc("hidden_corner", "隐秘角落", "适合观察、偷听或交换秘密。", ["meeting_place", "public_square"]),
+    loc("public_square", "公开场合", "任何行动都可能影响更多人的态度。", ["hidden_corner"]),
+  ];
+}
+
+function loc(
+  id: string,
+  name: string,
+  description: string,
+  connected_locations: string[],
+  flags: Record<string, boolean> = {}
+): LocationState {
+  return { id, name, description, present_characters: [], connected_locations, flags };
+}
+
+function formatLocationName(id: string): string {
+  return id
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 export function applyUpdates(state: WorldState, updates: StateUpdate[]): WorldState {
@@ -133,52 +210,41 @@ export function applyUpdates(state: WorldState, updates: StateUpdate[]): WorldSt
       case "add_known_fact": {
         if (update.target && update.fact_id) {
           const pk = next.knowledge_state.player_knowledge[update.target];
-          if (pk && !pk.known_facts.includes(update.fact_id)) {
-            pk.known_facts.push(update.fact_id);
-          }
-          // Also check NPC knowledge
+          if (pk && !pk.known_facts.includes(update.fact_id)) pk.known_facts.push(update.fact_id);
           const nk = next.knowledge_state.npc_knowledge[update.target];
-          if (nk && !nk.known_facts.includes(update.fact_id)) {
-            nk.known_facts.push(update.fact_id);
-          }
+          if (nk && !nk.known_facts.includes(update.fact_id)) nk.known_facts.push(update.fact_id);
         }
         break;
       }
       case "remove_known_fact": {
         if (update.target && update.fact_id) {
           const pk = next.knowledge_state.player_knowledge[update.target];
-          if (pk) {
-            pk.known_facts = pk.known_facts.filter((f) => f !== update.fact_id);
-          }
+          if (pk) pk.known_facts = pk.known_facts.filter((f) => f !== update.fact_id);
         }
         break;
       }
       case "metric_change": {
         if (update.metric && update.delta !== undefined) {
-          const m = next.metrics.find((x) => x.metric_id === update.metric);
-          if (m && typeof m.value === "number") {
-            m.value = Math.max(0, Math.min(100, (m.value as number) + update.delta));
+          const metric = next.metrics.find((item) => item.metric_id === update.metric);
+          if (metric && typeof metric.value === "number") {
+            metric.value = Math.max(0, Math.min(100, metric.value + update.delta));
           }
         }
         break;
       }
       case "set_flag": {
-        if (update.flag) {
-          next.flags[update.flag] = true;
-        }
+        if (update.flag) next.flags[update.flag] = true;
         break;
       }
       case "clear_flag": {
-        if (update.flag) {
-          next.flags[update.flag] = false;
-        }
+        if (update.flag) next.flags[update.flag] = false;
         break;
       }
       case "relationship_change": {
         if (update.relationship) {
           const { source, target, type, delta } = update.relationship;
           const existing = next.relationships.find(
-            (r) => r.source_id === source && r.target_id === target && r.type === type
+            (relationship) => relationship.source_id === source && relationship.target_id === target && relationship.type === type
           );
           if (existing) {
             existing.value = Math.max(-100, Math.min(100, existing.value + delta));
@@ -197,39 +263,34 @@ export function applyUpdates(state: WorldState, updates: StateUpdate[]): WorldSt
       case "add_evidence": {
         if (update.target && update.fact_id) {
           const pk = next.knowledge_state.player_knowledge[update.target];
-          if (pk && !pk.evidence.includes(update.fact_id)) {
-            pk.evidence.push(update.fact_id);
-          }
+          if (pk && !pk.evidence.includes(update.fact_id)) pk.evidence.push(update.fact_id);
         }
         break;
       }
       case "trigger_event": {
         if (update.target) {
-          const evt = next.events.find((e) => e.event_id === update.target);
-          if (evt) {
-            evt.triggered = true;
-            evt.trigger_turn = next.turn;
+          const event = next.events.find((item) => item.event_id === update.target);
+          if (event) {
+            event.triggered = true;
+            event.trigger_turn = next.turn;
           }
         }
         break;
       }
       case "change_location": {
         if (update.target && update.value && typeof update.value === "string") {
-          // Move character to new location
-          for (const loc of next.locations) {
-            loc.present_characters = loc.present_characters.filter((c) => c !== update.target);
+          for (const location of next.locations) {
+            location.present_characters = location.present_characters.filter((character) => character !== update.target);
           }
-          const newLoc = next.locations.find((l) => l.id === update.value);
-          if (newLoc) {
-            newLoc.present_characters.push(update.target);
+          const newLocation = next.locations.find((location) => location.id === update.value);
+          if (newLocation && !newLocation.present_characters.includes(update.target)) {
+            newLocation.present_characters.push(update.target);
           }
         }
         break;
       }
       case "reveal_information": {
-        if (update.target && update.value) {
-          next.knowledge_state.public_knowledge.push(update.value as string);
-        }
+        if (update.value) next.knowledge_state.public_knowledge.push(String(update.value));
         break;
       }
     }

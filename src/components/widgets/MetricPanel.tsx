@@ -18,7 +18,7 @@ export function MetricPanel({ metrics }: MetricPanelProps) {
 
   return (
     <div className="panel">
-      <h3 className="font-fantasy text-amber-400 text-sm mb-3">王国指标</h3>
+      <h3 className="font-fantasy text-amber-400 text-sm mb-3">局势指标</h3>
       <div className="space-y-3">
         {metrics.map((metric) => (
           <div key={metric.metric_id}>

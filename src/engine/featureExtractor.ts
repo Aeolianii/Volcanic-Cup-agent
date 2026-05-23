@@ -21,8 +21,9 @@ export function extractFeatures(bible: StoryBible): StoryFeatures {
 }
 
 function hasConflictingGoals(bible: StoryBible): boolean {
-  const allCharacters = [...bible.roles, ...bible.npcs];
-  const goals = allCharacters.map((c) => c.public_goal).filter(Boolean);
+  const roleGoals = bible.roles.flatMap((role) => [role.public_goal, role.secret_goal]);
+  const npcGoals = bible.npcs.flatMap((npc) => [npc.goal, npc.secret_goal]);
+  const goals = [...roleGoals, ...npcGoals].filter(Boolean);
   // Simplified: if there are goals, assume potential conflict
   return goals.length >= 2;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { roomManager } from "@/lib/roomManager";
+import { DEMO_STORY_BIBLE } from "@/mock/demoStoryBible";
 
 export async function GET(
   _request: Request,
@@ -17,9 +18,21 @@ export async function GET(
       );
     }
 
+    if (!roomManager.getStoryBible(room.story_bible_id) && room.story_bible_id === DEMO_STORY_BIBLE.id) {
+      roomManager.setStoryBible(DEMO_STORY_BIBLE);
+    }
+
+    const storyBible = roomManager.getStoryBible(room.story_bible_id);
+    const availableRoles = storyBible?.roles.map((role) => ({
+      id: role.id,
+      name: role.name,
+      public_identity: role.public_identity,
+    })) ?? [];
+
     return NextResponse.json({
       success: true,
-      room,
+      room: { ...room, available_roles: availableRoles },
+      story_bible: storyBible,
       world_state: worldState,
     });
   } catch (error) {

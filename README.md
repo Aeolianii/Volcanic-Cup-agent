@@ -22,6 +22,23 @@ npm run dev
 # 访问 http://localhost:3000
 ```
 
+## LLM Provider
+
+The app supports an OpenAI-compatible chat completions provider.
+
+Create `.env.local`:
+
+```bash
+DEEPSEEK_API_KEY=your_api_key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-pro
+```
+
+When `DEEPSEEK_API_KEY` is present, GM narration, NPC planning, ending narration,
+and free-action parsing use the real provider first. If the provider is
+unavailable or returns invalid JSON, the app falls back to the local mock
+provider so the demo remains playable.
+
 ## Demo 故事：失落圣杯之夜
 
 点击首页「Demo 故事」或访问 `/generate?demo=true` 可直接体验预置故事。

@@ -4,7 +4,7 @@ import { buildNPCLocalView } from "@/engine/npcKnowledgeFilter";
 import { generateNPCActionProposal } from "@/engine/npcPlanner";
 import { processNPCAction } from "@/engine/ruleEngine";
 import { applyUpdates } from "@/engine/worldStateEngine";
-import { mockAIProvider } from "@/mock/mockAIProvider";
+import { getAIProvider } from "@/lib/aiProvider";
 
 export async function POST(
   _request: Request,
@@ -27,7 +27,7 @@ export async function POST(
 
     for (const npc of bible.npcs) {
       const localView = buildNPCLocalView(npc, worldState, bible);
-      const proposal = await generateNPCActionProposal(npc, localView, mockAIProvider);
+      const proposal = await generateNPCActionProposal(npc, localView, getAIProvider());
 
       const result = processNPCAction(proposal, worldState, bible);
       worldState = applyUpdates(worldState, result.state_updates);

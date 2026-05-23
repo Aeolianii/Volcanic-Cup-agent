@@ -19,7 +19,13 @@ export async function POST(
     }
 
     const room = roomManager.getRoom(roomId);
-    return NextResponse.json({ success: true, room });
+    const bible = room ? roomManager.getStoryBible(room.story_bible_id) : undefined;
+    const availableRoles = bible?.roles.map((role) => ({
+      id: role.id,
+      name: role.name,
+      public_identity: role.public_identity,
+    })) ?? [];
+    return NextResponse.json({ success: true, room: room ? { ...room, available_roles: availableRoles } : room });
   } catch (error) {
     return NextResponse.json(
       { success: false, error: String(error) },

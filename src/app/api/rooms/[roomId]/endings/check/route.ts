@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { roomManager } from "@/lib/roomManager";
 import { checkEndings } from "@/engine/endingJudge";
-import { mockAIProvider } from "@/mock/mockAIProvider";
+import { getAIProvider } from "@/lib/aiProvider";
 
 export async function POST(
   _request: Request,
@@ -24,7 +24,7 @@ export async function POST(
 
     let endingNarrative = "";
     if (endingResult.reached && endingResult.ending) {
-      endingNarrative = await mockAIProvider.generateEndingNarrative({
+      endingNarrative = await getAIProvider().generateEndingNarrative({
         ending_title: endingResult.ending.title,
         ending_description: endingResult.ending.description,
         world_state_summary: {

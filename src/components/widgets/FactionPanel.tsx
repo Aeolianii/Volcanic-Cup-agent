@@ -4,9 +4,10 @@ import type { Faction } from "@/types";
 
 interface FactionPanelProps {
   factions: Faction[];
+  memberLabels?: Record<string, string>;
 }
 
-export function FactionPanel({ factions }: FactionPanelProps) {
+export function FactionPanel({ factions, memberLabels = {} }: FactionPanelProps) {
   if (factions.length === 0) {
     return (
       <div className="panel">
@@ -48,7 +49,7 @@ export function FactionPanel({ factions }: FactionPanelProps) {
                       key={member}
                       className="text-[10px] bg-midnight-600 px-1.5 py-0.5 rounded text-parchment-400"
                     >
-                      {member}
+                      {memberLabels[member] || member}
                     </span>
                   ))}
                 </div>

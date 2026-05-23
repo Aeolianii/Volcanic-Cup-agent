@@ -51,7 +51,7 @@ export function validateStoryBible(bible: StoryBible): ValidationResult {
 
   // NPC must not have full story access (enforced by type system, but double-check)
   for (const npc of bible.npcs) {
-    if ((npc as Record<string, unknown>).full_story_access) {
+    if ((npc as unknown as Record<string, unknown>).full_story_access) {
       errors.push({ field: `npcs[${npc.name}]`, message: "NPC 不得拥有 full_story_access" });
     }
   }
@@ -87,7 +87,7 @@ export function validateStoryBible(bible: StoryBible): ValidationResult {
 
   // Validate UI Config widgets exist in registry
   for (const widget of bible.ui_config.widgets) {
-    if (!WIDGET_KEYS.includes(widget.key)) {
+    if (!(WIDGET_KEYS as readonly string[]).includes(widget.key)) {
       errors.push({
         field: `ui_config.widgets[${widget.key}]`,
         message: `Widget "${widget.key}" 不存在于 WidgetRegistry 中`,

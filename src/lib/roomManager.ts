@@ -4,10 +4,16 @@ import { createWorldState } from "@/engine/worldStateEngine";
 /**
  * In-memory room manager (MVP — replace with DB in production)
  */
+const globalRoomStore = globalThis as typeof globalThis & {
+  __aiStoryRooms?: Map<string, Room>;
+  __aiStoryWorldStates?: Map<string, WorldState>;
+  __aiStoryBibles?: Map<string, StoryBible>;
+};
+
 class RoomManager {
-  private rooms: Map<string, Room> = new Map();
-  private worldStates: Map<string, WorldState> = new Map();
-  private storyBibles: Map<string, StoryBible> = new Map();
+  private rooms: Map<string, Room> = globalRoomStore.__aiStoryRooms ??= new Map();
+  private worldStates: Map<string, WorldState> = globalRoomStore.__aiStoryWorldStates ??= new Map();
+  private storyBibles: Map<string, StoryBible> = globalRoomStore.__aiStoryBibles ??= new Map();
 
   createRoom(
     storyBibleId: string,
@@ -90,22 +96,36 @@ class RoomManager {
     player.role = role;
     player.is_ready = true;
 
+    if (room.players.length > 0 && room.players.every((p) => p.role_id)) {
+      room.status = "ready";
+    }
+
     return true;
   }
 
   startStory(roomId: string): boolean {
     const room = this.rooms.get(roomId);
     if (!room) return false;
-    if (room.status !== "ready") return false;
 
     const bible = this.storyBibles.get(room.story_bible_id);
     if (!bible) return false;
 
-    // All players must have selected a role
+    // MVP allows a solo demo room. Every joined player must have selected a role.
     if (room.players.some((p) => !p.role_id)) return false;
 
     // Create world state
     const ws = createWorldState(bible.id, roomId, bible);
+    for (const player of room.players) {
+      if (!player.role) continue;
+      ws.knowledge_state.player_knowledge[player.player_id] = {
+        player_id: player.player_id,
+        known_facts: [...player.role.initial_knowledge],
+        known_npcs: [],
+        known_locations: [player.role.starting_location],
+        known_events: [],
+        evidence: [],
+      };
+    }
     this.worldStates.set(room.world_state_id, ws);
 
     room.status = "running";

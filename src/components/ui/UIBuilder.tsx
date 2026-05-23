@@ -153,7 +153,7 @@ export function UIBuilder({
       case "EvidencePanel":
         return (
           <EvidencePanel
-            evidence={playerView?.known_facts.filter((f) => f.startsWith("clue_")) || []}
+            evidence={playerView?.evidence || []}
             knownFacts={playerView?.known_facts || []}
           />
         );
@@ -162,6 +162,10 @@ export function UIBuilder({
         return (
           <FactionPanel
             factions={storyBible?.factions || []}
+            memberLabels={Object.fromEntries([
+              ...(storyBible?.roles.map((role) => [role.id, role.name] as const) || []),
+              ...(storyBible?.npcs.map((npc) => [npc.id, npc.name] as const) || []),
+            ])}
           />
         );
 

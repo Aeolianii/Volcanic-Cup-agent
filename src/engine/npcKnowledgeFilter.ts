@@ -79,7 +79,7 @@ export function buildNPCLocalView(
       ...npcKnowledge.known_events,
       ...publicEvents,
     ],
-    known_players,
+    known_players: knownPlayers,
     relationships,
     recent_actions: [],
   };
