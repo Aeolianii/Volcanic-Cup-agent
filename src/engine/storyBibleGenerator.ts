@@ -101,9 +101,39 @@ function extractFieldFromDetail(detail: string, labels: string[]): string {
   for (const label of labels) {
     const pattern = new RegExp(`${label}[：:是为]?\\s*([^。；;\\n]+)`);
     const match = detail.match(pattern);
-    if (match?.[1]) return match[1].trim();
+    if (match?.[1]) {
+      return cleanGoalText(match[1], label).trim();
+    }
   }
   return "";
+}
+
+function cleanGoalText(value: string, currentLabel = ""): string {
+  let output = value.trim();
+  const boundaryLabels = ["公开目标", "公开目的", "表面目标", "秘密目标", "秘密目的", "隐藏动机", "真实目标", "人物关系", "关系", "冲突", "性格", "公开身份", "身份", "职业"]
+    .filter((label) => label !== currentLabel);
+
+  for (const label of boundaryLabels) {
+    const index = output.search(new RegExp(`[，,、\\s]*${label}[：:是为]?`));
+    if (index > 0) output = output.slice(0, index).trim();
+  }
+
+  return output.replace(/^[：:，,、\s]+/, "").replace(/[，,、\s]+$/, "");
+}
+
+function sanitizePublicGoal(goal: string): string {
+  return cleanGoalText(goal)
+    .replace(/秘密目标[：:是为]?.*$/, "")
+    .replace(/秘密目的[：:是为]?.*$/, "")
+    .replace(/隐藏动机[：:是为]?.*$/, "")
+    .trim();
+}
+
+function sanitizeSecretGoal(goal: string): string {
+  return cleanGoalText(goal)
+    .replace(/公开目标[：:是为]?.*$/, "")
+    .replace(/公开目的[：:是为]?.*$/, "")
+    .trim();
 }
 
 function inferIdentityFromName(name: string, seed: StorySeed, detail = ""): string {
@@ -241,10 +271,36 @@ function buildPrivateBackground(name: string, seed: StorySeed, detail = ""): str
   return `你与“${shortText(hook, 24)}”有私人关联，这段关联暂时不宜公开。`;
 }
 
+function containsSecretMarker(text: string): boolean {
+  return /(秘密目标|秘密目的|隐藏动机|真实目标|不能公开|暗中|隐瞒)/.test(text);
+}
+
+function isStrongSecretGoal(goal: string): boolean {
+  if (!isValidGoal(goal)) return false;
+  if (goal.length < 8) return false;
+  if (/^(保护自己|查清真相|隐藏秘密|完成个人目标|寻找真相)$/.test(goal.trim())) return false;
+  return true;
+}
+
+function buildIdentityBasedSecretGoal(name: string, seed: StorySeed, detail = ""): string {
+  const text = `${name} ${detail}`;
+  if (/失踪者妹妹|妹妹|亲属/.test(text)) return "确认亲人失踪背后的真正责任人，同时隐瞒自己私下调查得到的关键证据";
+  if (/继承人/.test(text)) return "隐藏家族旧债或遗嘱矛盾，确保自己不会失去继承资格";
+  if (/退休刑警|刑警|侦探|调查员|记者/.test(text)) return "弥补过去调查中的失误，同时避免自己当年的判断被公开质疑";
+  if (/摄影师|画家|作家|插画师/.test(text)) return "保住自己拍到或记录下的关键材料，并用它换取主动权";
+  if (/老板|店主|馆主|经理/.test(text)) return "掩盖场所经营记录中的异常，避免旧事件牵连到自己";
+  if (/常客|住客|客人|旅客/.test(text)) return "隐藏自己来到现场的真实原因，并找回只属于自己的那份证据";
+  if (/医生|护士|法医/.test(text)) return "隐瞒自己对伤情或死亡时间的特殊判断，等待更安全的公开时机";
+  if (/律师|顾问|地产|商人/.test(text)) return "取得能影响交易或责任归属的把柄，同时避免利益关系曝光";
+  const hook = shortText(seed.opening || seed.world_setting || "核心事件", 18);
+  return `查清自己与“${hook}”的私人关联是否会曝光，并提前控制对自己不利的证据`;
+}
+
 function buildPublicGoal(name: string, seed: StorySeed, suggested?: string, detail = ""): string {
-  const detailGoal = extractFieldFromDetail(detail, ["公开目标", "公开目的", "表面目标"]);
-  if (isValidGoal(detailGoal)) return detailGoal;
-  if (suggested && isValidGoal(suggested)) return suggested;
+  const detailGoal = sanitizePublicGoal(extractFieldFromDetail(detail, ["公开目标", "公开目的", "表面目标"]));
+  if (isValidGoal(detailGoal) && !containsSecretMarker(detailGoal)) return detailGoal;
+  const suggestedGoal = sanitizePublicGoal(suggested || "");
+  if (suggestedGoal && isValidGoal(suggestedGoal) && !containsSecretMarker(suggestedGoal)) return suggestedGoal;
   const profile = getProfile(seed);
   
   // Mystery/Investigation genre (民宿、推理、悬疑)
@@ -280,9 +336,12 @@ function buildPublicGoal(name: string, seed: StorySeed, suggested?: string, deta
 }
 
 function buildSecretGoal(name: string, seed: StorySeed, suggested?: string, detail = ""): string {
-  const detailGoal = extractFieldFromDetail(detail, ["秘密目标", "秘密目的", "隐藏动机", "真实目标"]);
-  if (isValidGoal(detailGoal)) return detailGoal;
-  if (suggested && isValidGoal(suggested)) return suggested;
+  const detailGoal = sanitizeSecretGoal(extractFieldFromDetail(detail, ["秘密目标", "秘密目的", "隐藏动机", "真实目标"]));
+  if (isStrongSecretGoal(detailGoal)) return detailGoal;
+  const suggestedGoal = sanitizeSecretGoal(suggested || "");
+  if (isStrongSecretGoal(suggestedGoal)) return suggestedGoal;
+  const identityBased = buildIdentityBasedSecretGoal(name, seed, detail);
+  if (identityBased) return identityBased;
   const profile = getProfile(seed);
   if (profile === "campus") {
     if (/转校|新生/.test(name)) return "找到真正散播流言的人，同时保住自己不愿公开的过去。";
