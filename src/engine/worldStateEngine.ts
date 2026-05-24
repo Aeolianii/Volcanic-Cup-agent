@@ -7,6 +7,8 @@ import type {
   RelationshipState,
   StateUpdate,
   WorldState,
+  MemoryEntry,
+  NPCRuntimeState,
 } from "@/types";
 import type { StoryBible } from "@/types";
 
@@ -47,6 +49,7 @@ export function createWorldState(
       known_facts: [...npc.initial_knowledge],
       known_events: [],
       known_players: [],
+      known_player_actions: [],
       relationships: {},
       suspicions: {},
     };
@@ -62,12 +65,71 @@ export function createWorldState(
     events,
     relationships,
     locations: createLocations(bible),
+    active_modifiers: [],
+    npc_runtime_state: Object.fromEntries(
+      bible.npcs.map((npc) => [
+        npc.id,
+        {
+          ...createInitialNPCRuntime(npc),
+        },
+      ])
+    ),
     knowledge_state: {
       player_knowledge: playerKnowledge,
       npc_knowledge: npcKnowledge,
       public_knowledge: [],
     },
   };
+}
+
+export function createInitialNPCRuntime(npc: StoryBible["npcs"][number]): NPCRuntimeState {
+  return {
+    npc_id: npc.id,
+    core_goal: npc.goal,
+    current_goal: inferStageGoal(npc.goal, npc.secret_goal, 1),
+    current_plan: inferInterventionStrategy(npc.behavior_style),
+    action_cooldown: 0,
+    action_frequency: 2,
+    last_action_turn: -1,
+    current_intention: "",
+    known_facts: npc.initial_knowledge.map((content, index) => ({
+      id: `initial_fact_${npc.id}_${index}`,
+      source: "initial_knowledge",
+      confidence: 90,
+      content,
+    })),
+    suspected_facts: [],
+    relationships: [],
+    suspicion_towards_players: {},
+    known_player_actions: [],
+    intervention_strategy: inferInterventionStrategy(npc.behavior_style),
+    threat_targets: [],
+    protected_secrets: npc.secret_goal ? [npc.secret_goal] : [],
+    active_modifiers: [],
+    memory_log: npc.memory.map((content, index) => ({
+      id: `initial_memory_${npc.id}_${index}`,
+      timestamp: 0,
+      source: "initial_memory",
+      importance: 60,
+      content,
+    })),
+    consecutive_target_id: undefined,
+    consecutive_target_count: 0,
+  };
+}
+
+function inferStageGoal(goal: string, secretGoal: string, chapter: number): string {
+  if (chapter <= 1) return `建立局势优势，同时隐藏真实目标：${secretGoal || goal}`;
+  if (chapter === 2) return `保护关键秘密，阻止敌对调查推进：${secretGoal || goal}`;
+  return `推进核心目标并控制最终局势：${goal}`;
+}
+
+function inferInterventionStrategy(style: { aggression: number; caution: number; cooperation: number; deception: number }): string {
+  if (style.deception >= 70) return "mislead_and_protect_secret";
+  if (style.aggression >= 60) return "threaten_and_accelerate_plan";
+  if (style.cooperation >= 60) return "assist_or_probe_players";
+  if (style.caution >= 60) return "observe_and_obstruct_when_threatened";
+  return "opportunistic_intervention";
 }
 
 function createLocations(bible: StoryBible): LocationState[] {
@@ -204,6 +266,8 @@ function formatLocationName(id: string): string {
 
 export function applyUpdates(state: WorldState, updates: StateUpdate[]): WorldState {
   const next = structuredClone(state);
+  next.active_modifiers ||= [];
+  next.npc_runtime_state ||= {};
 
   for (const update of updates) {
     switch (update.type) {
@@ -293,10 +357,139 @@ export function applyUpdates(state: WorldState, updates: StateUpdate[]): WorldSt
         if (update.value) next.knowledge_state.public_knowledge.push(String(update.value));
         break;
       }
+      case "add_active_modifier": {
+        if (update.modifier) {
+          next.active_modifiers = next.active_modifiers.filter((modifier) => modifier.id !== update.modifier?.id);
+          next.active_modifiers.push(update.modifier);
+          const runtime = next.npc_runtime_state[update.modifier.source];
+          if (runtime) {
+            runtime.active_modifiers = runtime.active_modifiers.filter((modifier) => modifier.id !== update.modifier?.id);
+            runtime.active_modifiers.push(update.modifier);
+          }
+        }
+        break;
+      }
+      case "update_npc_runtime": {
+        if (update.target && update.npc_runtime) {
+          const current = next.npc_runtime_state[update.target] ?? {
+            npc_id: update.target,
+            core_goal: "",
+            current_goal: "",
+            current_plan: "",
+            action_cooldown: 0,
+            action_frequency: 2,
+            last_action_turn: -1,
+            current_intention: "",
+            known_facts: [],
+            suspected_facts: [],
+            relationships: [],
+            suspicion_towards_players: {},
+            known_player_actions: [],
+            intervention_strategy: "",
+            threat_targets: [],
+            protected_secrets: [],
+            active_modifiers: [],
+            memory_log: [],
+            consecutive_target_count: 0,
+          };
+          next.npc_runtime_state[update.target] = {
+            ...current,
+            ...update.npc_runtime,
+            suspicion_towards_players: {
+              ...current.suspicion_towards_players,
+              ...update.npc_runtime.suspicion_towards_players,
+            },
+          };
+        }
+        break;
+      }
+      case "append_npc_memory": {
+        if (update.target && update.value) {
+          const runtime = next.npc_runtime_state[update.target];
+          const memory = update.memory || createMemory(update.value, next.turn);
+          if (runtime) runtime.memory_log.push(memory);
+          const nk = next.knowledge_state.npc_knowledge[update.target];
+          if (nk && !nk.known_facts.includes(String(update.value))) nk.known_facts.push(String(update.value));
+        }
+        break;
+      }
+      case "add_npc_fact": {
+        if (update.target && update.fact) {
+          const runtime = next.npc_runtime_state[update.target];
+          if (runtime && !runtime.known_facts.some((fact) => fact.id === update.fact?.id)) {
+            runtime.known_facts.push(update.fact);
+          }
+        }
+        break;
+      }
+      case "add_npc_suspected_fact": {
+        if (update.target && update.fact) {
+          const runtime = next.npc_runtime_state[update.target];
+          if (runtime && !runtime.suspected_facts.some((fact) => fact.id === update.fact?.id)) {
+            runtime.suspected_facts.push(update.fact);
+          }
+        }
+        break;
+      }
+      case "record_known_player_action": {
+        if (update.target && update.known_player_action) {
+          const runtime = next.npc_runtime_state[update.target];
+          if (runtime) {
+            runtime.known_player_actions = [
+              ...runtime.known_player_actions,
+              update.known_player_action,
+            ].slice(-12);
+          }
+          const nk = next.knowledge_state.npc_knowledge[update.target];
+          if (nk) {
+            nk.known_player_actions = [
+              ...(nk.known_player_actions || []),
+              update.known_player_action,
+            ].slice(-12);
+            if (!nk.known_players.includes(update.known_player_action.actor_id)) {
+              nk.known_players.push(update.known_player_action.actor_id);
+            }
+          }
+        }
+        break;
+      }
     }
   }
 
   return next;
+}
+
+function createMemory(value: unknown, turn: number): MemoryEntry {
+  return {
+    id: `memory_${turn}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: turn,
+    source: "rule_engine",
+    importance: 50,
+    content: String(value),
+  };
+}
+
+export function decrementActiveModifiers(state: WorldState): WorldState {
+  const activeModifiers = (state.active_modifiers || [])
+    .map((modifier) => ({ ...modifier, remaining_turns: modifier.remaining_turns - 1 }))
+    .filter((modifier) => modifier.remaining_turns > 0);
+  const activeBySource = new Map<string, typeof activeModifiers>();
+  for (const modifier of activeModifiers) {
+    activeBySource.set(modifier.source, [...(activeBySource.get(modifier.source) || []), modifier]);
+  }
+  return {
+    ...state,
+    active_modifiers: activeModifiers,
+    npc_runtime_state: Object.fromEntries(
+      Object.entries(state.npc_runtime_state || {}).map(([npcId, runtime]) => [
+        npcId,
+        {
+          ...runtime,
+          active_modifiers: activeBySource.get(npcId) || [],
+        },
+      ])
+    ),
+  };
 }
 
 export function getMetricValue(state: WorldState, metricId: string): number | boolean | string | undefined {

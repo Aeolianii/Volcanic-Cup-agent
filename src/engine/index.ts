@@ -2,7 +2,7 @@
 export { validateStoryBible } from "./storyBibleValidator";
 export type { ValidationResult, ValidationError, ValidationWarning } from "./storyBibleValidator";
 
-export { createWorldState, applyUpdates, getMetricValue, isFlagSet, getPlayerKnowledge, getNPCKnowledge } from "./worldStateEngine";
+export { createWorldState, applyUpdates, decrementActiveModifiers, getMetricValue, isFlagSet, getPlayerKnowledge, getNPCKnowledge } from "./worldStateEngine";
 
 export { processPlayerAction, processNPCAction } from "./ruleEngine";
 
@@ -29,6 +29,8 @@ export type { EndingResult, EndingStatus } from "./endingJudge";
 export { buildNPCLocalView } from "./npcKnowledgeFilter";
 
 export { generateNPCActionProposal } from "./npcPlanner";
+export { runDueNPCTurns } from "./npcTurnSystem";
+export type { NPCTurnResult } from "./npcTurnSystem";
 
 export { generateGMNarrative } from "./aiGM";
 

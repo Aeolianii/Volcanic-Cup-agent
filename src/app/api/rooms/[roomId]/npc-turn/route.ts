@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { roomManager } from "@/lib/roomManager";
-import { buildNPCLocalView } from "@/engine/npcKnowledgeFilter";
-import { generateNPCActionProposal } from "@/engine/npcPlanner";
-import { processNPCAction } from "@/engine/ruleEngine";
-import { applyUpdates } from "@/engine/worldStateEngine";
+import { runDueNPCTurns } from "@/engine/npcTurnSystem";
 import { getAIProvider } from "@/lib/aiProvider";
 
 export async function POST(
@@ -23,29 +20,14 @@ export async function POST(
       );
     }
 
-    const npcResults = [];
-
-    for (const npc of bible.npcs) {
-      const localView = buildNPCLocalView(npc, worldState, bible);
-      const proposal = await generateNPCActionProposal(npc, localView, getAIProvider());
-
-      const result = processNPCAction(proposal, worldState, bible);
-      worldState = applyUpdates(worldState, result.state_updates);
-
-      npcResults.push({
-        npc_id: npc.id,
-        npc_name: npc.name,
-        proposal,
-        result,
-        public_result: result.public_result,
-      });
-    }
+    const npcTurn = await runDueNPCTurns(worldState, bible, getAIProvider());
+    worldState = npcTurn.worldState;
 
     roomManager.updateWorldState(roomId, worldState);
 
     return NextResponse.json({
       success: true,
-      npc_results: npcResults,
+      npc_results: npcTurn.npcResults,
       world_state: worldState,
     });
   } catch (error) {

@@ -1,17 +1,18 @@
-import type { NPC, NPCLocalView, ActionProposal } from "@/types";
-import type { AIProvider } from "@/types";
+import type { AIProvider, ActionProposal, NPC, NPCActionEffect, NPCActionType, NPCLocalView } from "@/types";
+
+const MAX_CONSECUTIVE_TARGET = 2;
 
 /**
- * AI NPC Planner
- * Generates NPC Action Proposals based on limited local view.
- * In production, delegates to AI; MVP uses behavioral rules.
+ * NPC Planner
+ *
+ * Each NPC is planned as an independent agent. The AI receives only the NPC's
+ * own profile plus NPCLocalView. It never receives the full Story Bible.
  */
 export async function generateNPCActionProposal(
   npc: NPC,
   localView: NPCLocalView,
   aiProvider: AIProvider
 ): Promise<ActionProposal> {
-  // Try AI first (mock returns null, triggering fallback)
   try {
     const aiOutput = await aiProvider.generateNPCAction({
       npc_id: npc.id,
@@ -23,82 +24,320 @@ export async function generateNPCActionProposal(
     });
 
     if (aiOutput) {
-      return {
+      return normalizeProposal({
         npc_id: npc.id,
         intention: aiOutput.intention,
-        action_type: aiOutput.action_type as ActionProposal["action_type"],
+        action_type: normalizeNPCActionType(aiOutput.action_type),
         target: aiOutput.target,
         method: aiOutput.method,
         reasoning_visible: aiOutput.reasoning_visible,
         risk_level: aiOutput.risk_level,
+        visibility: aiOutput.visibility || "partial",
         requires_rule_check: true,
-      };
+        effect: aiOutput.effect,
+      }, localView);
     }
   } catch {
-    // Fall through to behavioral rules
+    // Fall through to deterministic local behavior.
   }
 
-  // Fallback: behavioral rule-based planning
   return behavioralPlanner(npc, localView);
 }
 
 function behavioralPlanner(npc: NPC, localView: NPCLocalView): ActionProposal {
-  const { personality, goal, behavior_style } = npc;
+  const progressMetricId = visibleMetricId(localView, progressMetricCandidates());
+  const influenceMetricId = visibleMetricId(localView, influenceMetricCandidates()) || firstNumericVisibleMetric(localView);
+  const truthProgress = progressMetricId ? visibleMetricValue(localView, progressMetricCandidates()) : 0;
+  const topThreat = localView.threat_assessment[0];
+  const threateningInvestigation = findThreateningInvestigation(npc, localView);
+  const targetPlayer = fairTarget(topThreat?.target_id || mostRecentKnownPlayer(localView), localView);
 
-  // NPC with high deception tries to deceive
-  if (behavior_style.deception > 50 && localView.known_players.length > 0) {
-    const target = localView.known_players[0];
+  if (progressMetricId && truthProgress >= 70 && npc.behavior_style.deception >= 50) {
     return {
       npc_id: npc.id,
-      intention: `隐藏真实意图，误导 ${target.name}`,
-      action_type: "deceive",
-      target: target.id,
-      method: "misdirection",
-      reasoning_visible: `${npc.name} 似乎话中有话...`,
-      risk_level: "medium",
+      intention: `保护核心目标，制造假证据误导接近真相的调查`,
+      action_type: "mislead_player",
+      target: targetPlayer || "all_players",
+      method: "fabricate_false_evidence",
+      reasoning_visible: `${npc.name}根据自己的记忆、可见指标和威胁评估，判断局势已经危险，决定制造可疑但不致命的误导。`,
+      risk_level: npc.behavior_style.caution >= 70 ? "medium" : "high",
+      visibility: "partial",
       requires_rule_check: true,
+      effect: {
+        type: "false_evidence",
+        target_player_id: targetPlayer,
+        evidence_id: `false_evidence_${npc.id}_${Date.now()}`,
+        metric: progressMetricId,
+        delta: -6,
+        duration_turns: 0,
+      },
     };
   }
 
-  // NPC with high cooperation tries to ally or talk
-  if (behavior_style.cooperation > 50 && localView.known_players.length > 0) {
-    const target = localView.known_players[0];
+  if (threateningInvestigation && (topThreat?.level || 0) >= 45) {
     return {
       npc_id: npc.id,
-      intention: `与 ${target.name} 建立联系，推进 ${goal}`,
-      action_type: "talk",
-      target: target.id,
-      method: "conversation",
-      reasoning_visible: `${npc.name} 似乎想与你交流什么...`,
-      risk_level: "low",
-      requires_rule_check: false,
-    };
-  }
-
-  // NPC with high aggression threatens or attacks
-  if (behavior_style.aggression > 60 && localView.known_players.length > 0) {
-    const target = localView.known_players[0];
-    return {
-      npc_id: npc.id,
-      intention: `向 ${target.name} 施压，展示力量`,
-      action_type: "threaten",
-      target: target.id,
-      method: "intimidation",
-      reasoning_visible: `${npc.name} 的语气变得咄咄逼人...`,
-      risk_level: "medium",
+      intention: `保护阶段目标，延缓 ${threateningInvestigation.target} 的调查`,
+      action_type: "obstruct_investigation",
+      target: threateningInvestigation.target,
+      method: npc.behavior_style.deception >= 60 ? "misdirection_and_interference" : "direct_pressure",
+      reasoning_visible: `${npc.name}只知道玩家正在接近敏感地点或线索，因此尝试延缓调查，而不是永久删除关键线索。`,
+      risk_level: npc.behavior_style.caution >= 70 ? "low" : "medium",
+      visibility: "partial",
       requires_rule_check: true,
+      effect: {
+        type: "success_rate_modifier",
+        target_action_type: threateningInvestigation.action_type,
+        target_location: threateningInvestigation.target,
+        delta: npc.behavior_style.deception >= 70 ? -20 : -15,
+        duration_turns: 1,
+      },
     };
   }
 
-  // Default: NPC does something related to their goal
+  if (topThreat && topThreat.level >= 55 && targetPlayer) {
+    return {
+      npc_id: npc.id,
+      intention: `调查威胁目标 ${targetPlayer}，确认其掌握的信息`,
+      action_type: "influence_npc",
+      target: targetPlayer,
+      method: "probe_and_recruit",
+      reasoning_visible: `${npc.name}没有全局真相，只能通过试探威胁目标来判断下一步。`,
+      risk_level: "medium",
+      visibility: "secret",
+      requires_rule_check: true,
+      effect: {
+        type: "relationship_change",
+        delta: -5,
+      },
+    };
+  }
+
+  if (npc.behavior_style.deception > 50 && localView.known_players.length > 0) {
+    const target = fairTarget(localView.known_players[0].id, localView) || "public_situation";
+    return {
+      npc_id: npc.id,
+      intention: `用选择性真相制造张力，同时保护自己的秘密`,
+      action_type: "mislead_player",
+      target,
+      method: "selective_truth",
+      reasoning_visible: `${npc.name}基于有限知识释放半真半假的信息，让局势更紧张。`,
+      risk_level: "medium",
+      visibility: "partial",
+      requires_rule_check: true,
+      effect: {
+        type: "success_rate_modifier",
+        target_action_type: "investigate",
+        delta: -10,
+        duration_turns: 1,
+      },
+    };
+  }
+
   return {
     npc_id: npc.id,
-    intention: `推进自己的目标: ${goal}`,
-    action_type: "talk",
-    target: localView.known_players[0]?.id || "unknown",
-    method: "conversation",
-    reasoning_visible: `${npc.name} 按照自己的计划行事。`,
+    intention: `推进核心目标：${localView.runtime.core_goal || npc.goal}`,
+    action_type: "accelerate_plan",
+    target: "public_situation",
+    method: "quiet_preparation",
+    reasoning_visible: `${npc.name}没有发现直接威胁，于是推进自己的计划。`,
     risk_level: "low",
-    requires_rule_check: false,
+    visibility: "secret",
+    requires_rule_check: true,
+    effect: {
+      type: "metric_change",
+      metric: influenceMetricId,
+      delta: 3,
+      duration_turns: 0,
+    },
   };
+}
+
+function normalizeProposal(proposal: ActionProposal, localView: NPCLocalView): ActionProposal {
+  const effect = normalizeEffect(proposal.effect, localView);
+  return {
+    ...proposal,
+    action_type: normalizeNPCActionType(proposal.action_type),
+    target: fairTarget(proposal.target, localView) || proposal.target || mostRecentKnownPlayer(localView) || "public_situation",
+    method: proposal.method || "indirect_action",
+    reasoning_visible: proposal.reasoning_visible || "NPC acts from limited local knowledge.",
+    risk_level: proposal.risk_level || "medium",
+    visibility: proposal.visibility || "partial",
+    requires_rule_check: true,
+    effect,
+  };
+}
+
+function normalizeEffect(effect: NPCActionEffect | undefined, localView: NPCLocalView): NPCActionEffect | undefined {
+  if (!effect) return undefined;
+  if (effect.type === "false_evidence") {
+    const progressMetricId = visibleMetricId(localView, progressMetricCandidates());
+    return {
+      ...effect,
+      metric: progressMetricId || effect.metric,
+      delta: clamp(effect.delta ?? -5, -10, -1),
+    };
+  }
+  if (effect.type === "success_rate_modifier") {
+    return {
+      ...effect,
+      delta: clamp(effect.delta ?? -10, -30, -1),
+      duration_turns: Math.max(1, effect.duration_turns ?? 1),
+    };
+  }
+  return effect;
+}
+
+const NPC_ACTION_TYPES: NPCActionType[] = [
+  "obstruct_investigation",
+  "mislead_player",
+  "hide_evidence",
+  "frame_player",
+  "manipulate_metric",
+  "influence_npc",
+  "protect_secret",
+  "accelerate_plan",
+  "talk",
+  "persuade",
+  "threaten",
+  "deceive",
+  "ally",
+  "betray",
+  "confess",
+  "investigate",
+  "search",
+  "track",
+  "eavesdrop",
+  "interrogate",
+  "decode",
+  "command",
+  "summon_meeting",
+  "gain_support",
+  "coup",
+  "impeach",
+  "appoint",
+  "attack",
+  "assassinate",
+  "duel",
+  "ambush",
+  "defend",
+  "buy",
+  "trade",
+  "steal",
+  "transport",
+  "build",
+];
+
+function normalizeNPCActionType(value: string): NPCActionType {
+  return NPC_ACTION_TYPES.includes(value as NPCActionType)
+    ? (value as NPCActionType)
+    : "mislead_player";
+}
+
+function findThreateningInvestigation(npc: NPC, localView: NPCLocalView) {
+  const goalText = [
+    npc.goal,
+    npc.secret_goal,
+    localView.runtime.core_goal,
+    localView.runtime.current_goal,
+    localView.runtime.protected_secrets.join(" "),
+    localView.known_facts.join(" "),
+  ].join(" ").toLowerCase();
+
+  return localView.recent_actions
+    .filter((action) => ["investigate", "search", "track", "eavesdrop", "interrogate", "decode"].includes(action.action_type))
+    .find((action) => {
+      const targetText = action.target.toLowerCase();
+      const targetTokens = splitTokens(targetText);
+      return (
+        goalText.includes(targetText) ||
+        targetTokens.some((token) => token.length >= 4 && goalText.includes(token)) ||
+        genericSensitiveTarget(action.target)
+      );
+    });
+}
+
+function fairTarget(target: string | undefined, localView: NPCLocalView): string | undefined {
+  if (!target) return undefined;
+  if (
+    localView.runtime.consecutive_target_id === target &&
+    (localView.runtime.consecutive_target_count || 0) >= MAX_CONSECUTIVE_TARGET
+  ) {
+    return localView.threat_assessment.find((item) => item.target_id !== target)?.target_id ||
+      localView.known_players.find((player) => player.id !== target)?.id;
+  }
+  return target;
+}
+
+function visibleMetricValue(localView: NPCLocalView, candidates: string[]): number {
+  const id = visibleMetricId(localView, candidates);
+  const metric = localView.visible_metrics.find((item) => item.id === id);
+  return Number(metric?.value ?? 0);
+}
+
+function visibleMetricId(localView: NPCLocalView, candidates: string[]): string | undefined {
+  return localView.visible_metrics.find((metric) =>
+    candidates.some((candidate) => metric.id.toLowerCase().includes(candidate.toLowerCase()))
+  )?.id;
+}
+
+function firstNumericVisibleMetric(localView: NPCLocalView): string | undefined {
+  return localView.visible_metrics.find((metric) => Number.isFinite(Number(metric.value)))?.id;
+}
+
+function progressMetricCandidates(): string[] {
+  return [
+    "truth_progress",
+    "progress",
+    "truth",
+    "clue",
+    "evidence",
+    "investigation",
+    "discovery",
+    "真相",
+    "进度",
+    "线索",
+    "证据",
+    "调查",
+    "发现",
+  ];
+}
+
+function influenceMetricCandidates(): string[] {
+  return [
+    "faction_power",
+    "influence",
+    "power",
+    "pressure",
+    "tension",
+    "suspicion",
+    "stability",
+    "trust",
+    "势力",
+    "影响",
+    "压力",
+    "紧张",
+    "怀疑",
+    "稳定",
+    "信任",
+  ];
+}
+
+function splitTokens(value: string): string[] {
+  return value
+    .toLowerCase()
+    .split(/[^a-z0-9\u4e00-\u9fa5]+/i)
+    .filter(Boolean);
+}
+
+function genericSensitiveTarget(target: string): boolean {
+  return /(secret|clue|evidence|record|archive|witness|investigation|hidden|秘密|线索|证据|记录|档案|证人|调查|隐藏)/i.test(target);
+}
+
+function mostRecentKnownPlayer(localView: NPCLocalView): string | undefined {
+  return localView.recent_actions.at(-1)?.actor_id || localView.known_players[0]?.id;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

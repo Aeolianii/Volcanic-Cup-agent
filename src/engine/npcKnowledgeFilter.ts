@@ -1,4 +1,6 @@
 import type { WorldState, NPC, StoryBible, NPCLocalView } from "@/types";
+import type { NPCRuntimeState } from "@/types";
+import { createInitialNPCRuntime } from "./worldStateEngine";
 
 /**
  * NPC Knowledge Filter / Perspective Builder
@@ -28,12 +30,18 @@ export function buildNPCLocalView(
   const npcKnowledge = state.knowledge_state.npc_knowledge[npc.id];
 
   if (!npcKnowledge) {
+    const runtime = getRuntime(npc, state);
     return {
       known_facts: [...npc.initial_knowledge],
       known_events: [],
       known_players: [],
       relationships: {},
       recent_actions: [],
+      current_public_events: [],
+      visible_metrics: visibleMetrics(state, _bible),
+      observations: [],
+      threat_assessment: [],
+      runtime,
     };
   }
 
@@ -73,6 +81,8 @@ export function buildNPCLocalView(
     known_facts: [
       ...npc.initial_knowledge,
       ...npcKnowledge.known_facts,
+      ...getRuntime(npc, state).known_facts.map((fact) => fact.content),
+      ...getRuntime(npc, state).suspected_facts.map((fact) => `疑似：${fact.content}`),
       ...state.knowledge_state.public_knowledge,
     ],
     known_events: [
@@ -81,6 +91,47 @@ export function buildNPCLocalView(
     ],
     known_players: knownPlayers,
     relationships,
-    recent_actions: [],
+    recent_actions: [
+      ...(npcKnowledge.known_player_actions || []),
+      ...(state.npc_runtime_state?.[npc.id]?.known_player_actions || []),
+    ].slice(-8),
+    current_public_events: publicEvents,
+    visible_metrics: visibleMetrics(state, _bible),
+    observations: buildObservations(getRuntime(npc, state)),
+    threat_assessment: buildThreatAssessment(getRuntime(npc, state)),
+    runtime: getRuntime(npc, state),
   };
+}
+
+function getRuntime(npc: NPC, state: WorldState): NPCRuntimeState {
+  return state.npc_runtime_state?.[npc.id] ?? createInitialNPCRuntime(npc);
+}
+
+function visibleMetrics(state: WorldState, bible: StoryBible): { id: string; value: unknown }[] {
+  return state.metrics
+    .filter((metric) => {
+      const definition = bible.metrics.find((item) => item.id === metric.metric_id);
+      return definition?.visibility === "public" || definition?.visibility === "conditional";
+    })
+    .map((metric) => ({ id: metric.metric_id, value: metric.value }));
+}
+
+function buildObservations(runtime: NPCRuntimeState): string[] {
+  return runtime.memory_log
+    .filter((memory) => memory.importance >= 50)
+    .slice(-8)
+    .map((memory) => memory.content);
+}
+
+function buildThreatAssessment(runtime: NPCRuntimeState): { target_id: string; level: number; reasons: string[] }[] {
+  return Object.entries(runtime.suspicion_towards_players)
+    .map(([target_id, level]) => ({
+      target_id,
+      level,
+      reasons: runtime.memory_log
+        .filter((memory) => memory.content.includes(target_id))
+        .slice(-3)
+        .map((memory) => memory.content),
+    }))
+    .sort((a, b) => b.level - a.level);
 }

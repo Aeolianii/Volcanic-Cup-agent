@@ -2,6 +2,7 @@
 // WorldState & Room Types
 // ============================================================
 
+import type { ActiveModifier, NPCRuntimeState } from "./action";
 import type { MetricState } from "./metric";
 
 export interface WorldState {
@@ -14,6 +15,8 @@ export interface WorldState {
   events: EventState[];
   relationships: RelationshipState[];
   locations: LocationState[];
+  active_modifiers: ActiveModifier[];
+  npc_runtime_state: Record<string, NPCRuntimeState>;
   knowledge_state: KnowledgeState;
 }
 
@@ -61,6 +64,7 @@ export interface NPCKnowledge {
   known_facts: string[];
   known_events: string[];
   known_players: string[];
+  known_player_actions: import("./action").KnownPlayerAction[];
   relationships: Record<string, number>;
   suspicions: Record<string, string>;
 }

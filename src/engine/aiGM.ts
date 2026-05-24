@@ -23,6 +23,7 @@ export async function generateGMNarrative(
     action: StructuredAction;
     result: RuleResult;
     triggered_events?: Array<{ id: string; title: string; description?: string }>;
+    npc_results?: GMActionContext["npc_results"];
   }
 ): Promise<GMNarrativeOutput> {
   const context = buildGMContext(bible, state, actionContext);
@@ -155,13 +156,14 @@ function buildGMContext(
     action: StructuredAction;
     result: RuleResult;
     triggered_events?: Array<{ id: string; title: string; description?: string }>;
+    npc_results?: GMActionContext["npc_results"];
   }
 ): GMContext {
   const currentChapter = bible.chapters.find((chapter) => chapter.order === state.chapter);
   const eventLabel = (eventId: string) =>
     bible.events.find((event) => event.id === eventId)?.title || eventId;
   const lastAction = actionContext
-    ? buildLastActionContext(actionContext.action, actionContext.result, bible, state, actionContext.triggered_events || [])
+    ? buildLastActionContext(actionContext.action, actionContext.result, bible, state, actionContext.triggered_events || [], actionContext.npc_results || [])
     : undefined;
 
   return {
@@ -361,7 +363,8 @@ function buildLastActionContext(
   result: RuleResult,
   bible: StoryBible,
   state: WorldState,
-  triggeredEvents: Array<{ id: string; title: string; description?: string }>
+  triggeredEvents: Array<{ id: string; title: string; description?: string }>,
+  npcResults: GMActionContext["npc_results"] = []
 ): GMActionContext {
   return {
     actor_id: action.actor_id,
@@ -389,6 +392,7 @@ function buildLastActionContext(
         value: update.value,
       })),
     triggered_events: triggeredEvents,
+    npc_results: npcResults,
   };
 }
 

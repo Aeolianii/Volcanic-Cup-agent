@@ -141,15 +141,6 @@ export function UIBuilder({
         return (
           <EventPanel
             events={playerView?.active_events || []}
-            allEvents={worldState?.events.map((e) => {
-              const bibleEvent = storyBible?.events.find((be) => be.id === e.event_id);
-              return {
-                id: e.event_id,
-                title: bibleEvent?.title || e.event_id,
-                description: bibleEvent?.description || "",
-                triggered: e.triggered,
-              };
-            })}
           />
         );
 

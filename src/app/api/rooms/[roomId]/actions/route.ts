@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { roomManager } from "@/lib/roomManager";
 import { parsePlayerAction, parseSuggestedAction } from "@/engine/actionParser";
 import { processPlayerAction } from "@/engine/ruleEngine";
-import { applyUpdates } from "@/engine/worldStateEngine";
+import { applyUpdates, decrementActiveModifiers } from "@/engine/worldStateEngine";
+import { runDueNPCTurns } from "@/engine/npcTurnSystem";
 import { checkEventTriggers } from "@/engine/eventTriggerSystem";
 import { checkEndings } from "@/engine/endingJudge";
 import { generateGMNarrative } from "@/engine/aiGM";
@@ -109,6 +110,9 @@ export async function POST(
     // Apply state updates
     worldState = applyUpdates(worldState, result.state_updates);
     worldState.turn += 1;
+    worldState = decrementActiveModifiers(worldState);
+    const npcTurn = await runDueNPCTurns(worldState, bible, getAIProvider());
+    worldState = npcTurn.worldState;
     roomManager.updateWorldState(roomId, worldState);
 
     // Check event triggers
@@ -145,6 +149,24 @@ export async function POST(
         {
           action: structuredAction,
           result,
+          npc_results: npcTurn.npcResults
+            .filter((item) => !item.skipped)
+            .map((item) => ({
+              npc_id: item.npc_id,
+              action_type: item.proposal?.action_type,
+              intention: item.proposal?.intention,
+              success: item.result?.success,
+              visibility: item.proposal?.visibility,
+              public_result: item.public_result,
+              state_updates: item.result?.state_updates.map((update) => ({
+                type: update.type,
+                target: update.target,
+                fact_id: update.fact_id,
+                metric: update.metric,
+                delta: update.delta,
+                value: update.value,
+              })),
+            })),
           triggered_events: triggeredEvents.map((item) => ({
             id: item.event.id,
             title: item.event.title,
@@ -179,6 +201,7 @@ export async function POST(
       chapter_transition: chapterTransition.should_transition ? chapterTransition : null,
       gm_narrative: gmNarrative,
       gm_message: gmMessage,
+      npc_results: npcTurn.npcResults,
       suggested_actions: gmNarrative.suggested_actions,
       world_state: worldState,
     });

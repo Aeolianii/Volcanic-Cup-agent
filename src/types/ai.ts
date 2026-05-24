@@ -62,6 +62,22 @@ export interface GMActionContext {
     title: string;
     description?: string;
   }>;
+  npc_results?: Array<{
+    npc_id: string;
+    action_type?: string;
+    intention?: string;
+    success?: boolean;
+    visibility?: string;
+    public_result?: string;
+    state_updates?: Array<{
+      type: string;
+      target?: string;
+      fact_id?: string;
+      metric?: string;
+      delta?: number;
+      value?: unknown;
+    }>;
+  }>;
 }
 
 export interface StoryBibleSummary {
@@ -119,7 +135,12 @@ export interface NPCLocalView {
   known_events: string[];
   known_players: { id: string; name: string; public_identity: string; location: string }[];
   relationships: Record<string, number>;
-  recent_actions: string[];
+  recent_actions: import("./action").KnownPlayerAction[];
+  current_public_events: string[];
+  visible_metrics: { id: string; value: unknown }[];
+  observations: string[];
+  threat_assessment: { target_id: string; level: number; reasons: string[] }[];
+  runtime: import("./action").NPCRuntimeState;
 }
 
 export interface NPCActionOutput {
@@ -129,6 +150,8 @@ export interface NPCActionOutput {
   method: string;
   reasoning_visible: string;
   risk_level: "low" | "medium" | "high";
+  visibility?: "public" | "partial" | "secret";
+  effect?: import("./action").NPCActionEffect;
 }
 
 export interface ActionParseContext {

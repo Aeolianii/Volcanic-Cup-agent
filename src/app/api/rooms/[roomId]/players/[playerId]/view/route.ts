@@ -66,10 +66,10 @@ export async function GET(
 
     const playerView: PlayerView = {
       role_sheet: player.role,
-      known_facts: normalizeKnownFacts(pk.known_facts, player, bible.world_setting.atmosphere),
+      known_facts: normalizeKnownFacts(pk.known_facts, player, bible.world_setting.atmosphere, bible, worldState),
       known_npcs: normalizeKnownNpcs(pk.known_npcs, bible),
       known_locations: pk.known_locations,
-      evidence: pk.evidence,
+      evidence: pk.evidence.map((item) => normalizeKnowledgeItem(item, bible, worldState)),
       visible_metrics: visibleMetrics,
       active_events: worldState.events
         .filter((e) => e.triggered)
@@ -103,7 +103,13 @@ export async function GET(
   }
 }
 
-function normalizeKnownFacts(facts: string[], player: Player, worldSetting: string): string[] {
+function normalizeKnownFacts(
+  facts: string[],
+  player: Player,
+  worldSetting: string,
+  bible: StoryBible,
+  worldState: WorldState
+): string[] {
   const role = player.role;
   if (!role) return facts;
 
@@ -121,7 +127,94 @@ function normalizeKnownFacts(facts: string[], player: Player, worldSetting: stri
     defaults.push(`当前局势背景：${worldSetting}`);
   }
 
-  return Array.from(new Set([...defaults, ...usefulFacts]));
+  return Array.from(new Set([
+    ...defaults,
+    ...usefulFacts.map((fact) => normalizeKnowledgeItem(fact, bible, worldState)),
+  ]));
+}
+
+function normalizeKnowledgeItem(item: string, bible: StoryBible, worldState: WorldState): string {
+  const raw = String(item || "").trim();
+  if (!raw) return raw;
+
+  const actionMatch = raw.match(/^Action completed:\s*([a-z_]+)\s*->\s*(.+)\.?$/i);
+  if (actionMatch) {
+    return `已完成${actionLabel(actionMatch[1])}：${formatKnowledgeTarget(actionMatch[2], bible, worldState)}。`;
+  }
+
+  const clueMatch = raw.match(/^Clue found at\s+(.+)\.?$/i);
+  if (clueMatch) {
+    return `来自${formatKnowledgeTarget(clueMatch[1], bible, worldState)}的线索。`;
+  }
+
+  if (/^[a-z]+(_[a-z0-9]+)+$/i.test(raw)) {
+    return formatInternalId(raw, bible, worldState);
+  }
+
+  return raw
+    .replace(/\bcurrent_location\b/g, "当前位置")
+    .replace(/\bconnected_location\b/g, "相关地点")
+    .replace(/\bcurrent_event\b/g, "当前事件")
+    .replace(/\ball_players\b/g, "所有玩家");
+}
+
+function formatInternalId(id: string, bible: StoryBible, worldState: WorldState): string {
+  const event = bible.events.find((item) => item.id === id);
+  if (event) return event.title;
+
+  const npc = bible.npcs.find((item) => item.id === id);
+  if (npc) return npc.name;
+
+  const role = bible.roles.find((item) => item.id === id);
+  if (role) return role.name;
+
+  const location = worldState.locations.find((item) => item.id === id);
+  if (location) return location.name;
+
+  if (id.startsWith("false_evidence_")) return "一条可疑线索";
+  if (id.startsWith("npc_action_")) return "某个角色的暗中行动";
+  if (id.startsWith("clue_")) {
+    return `来自${formatKnowledgeTarget(id.replace(/^clue_/, ""), bible, worldState)}的线索`;
+  }
+
+  return id
+    .replace(/^npc_/, "")
+    .replace(/^role_/, "")
+    .replace(/_/g, " ");
+}
+
+function formatKnowledgeTarget(value: string, bible: StoryBible, worldState: WorldState): string {
+  const cleaned = value.trim().replace(/\.$/, "");
+  return formatInternalId(cleaned, bible, worldState);
+}
+
+function actionLabel(actionType: string): string {
+  const labels: Record<string, string> = {
+    talk: "交谈",
+    persuade: "说服",
+    threaten: "威胁",
+    deceive: "欺骗",
+    ally: "结盟",
+    betray: "背叛",
+    confess: "坦白",
+    investigate: "调查",
+    search: "搜索",
+    track: "追踪",
+    eavesdrop: "偷听",
+    interrogate: "盘问",
+    decode: "解读",
+    command: "指挥",
+    summon_meeting: "召集会议",
+    gain_support: "争取支持",
+    attack: "攻击",
+    defend: "防守",
+    buy: "收买",
+    trade: "交易",
+    steal: "偷取",
+    transport: "转移",
+    build: "建设",
+  };
+  return labels[actionType] || actionType.replace(/_/g, " ");
 }
 
 function normalizeKnownNpcs(knownNpcs: string[], bible: { npcs: Array<{ id: string; name: string }> }): string[] {

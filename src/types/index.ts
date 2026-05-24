@@ -14,6 +14,6 @@ export type { Role, NPC, Ability, BehaviorStyle } from "./role";
 export type { Metric, MetricState, StoryEvent, EventTrigger, TriggerCondition, EventEffect, Ending, EndingCondition } from "./metric";
 export type { WorldState, EventState, RelationshipState, LocationState, KnowledgeState, PlayerKnowledge, NPCKnowledge } from "./worldState";
 export type { Room, RoomStatus, Player, PlayerView, VisibleMetric, ActiveEvent, SuggestedAction } from "./room";
-export type { StructuredAction, ActionType, ActionCategory, RuleResult, StateUpdate, StateUpdateType, RollResult, Modifier, ActionProposal } from "./action";
+export type { StructuredAction, ActionType, NPCActionType, ActionCategory, RuleResult, StateUpdate, StateUpdateType, RollResult, Modifier, ActionProposal, NPCActionEffect, ActiveModifier, KnownPlayerAction, MemoryEntry, FactEntry, NPCRelationshipSnapshot, NPCRuntimeState } from "./action";
 export type { AIProvider, GMContext, GMNarrativeOutput, NPCContext, NPCLocalView, NPCActionOutput, ActionParseContext, ParsedAction, EndingContext } from "./ai";
 export type { ChatMessage, ChatHint } from "./chat";
