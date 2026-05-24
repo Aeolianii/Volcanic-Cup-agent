@@ -109,6 +109,32 @@ src/
 
 ## 版本更新
 
+### v1.7 - 2026-05-25
+
+#### Story Bible 生成重构
+
+- 重构 `generateStoryBible` 流程，引入 `StoryCompletionDraft` 草稿类型系统，支持完整的角色、NPC、阵营、章节、事件、结局和知识草稿定义。
+- 新增 `generateStoryCompletionDraft` 生成完整故事草稿，优先使用 AI 生成结构化内容。
+- 支持显式角色输入与草稿角色自动合并，确保至少 2 个可玩角色。
+
+#### 中文本地化与文本清理
+
+- **Rule Engine 全面中文化**：所有公开结果改为中文输出，包括行动成功/失败描述、目标名称和动作类型。
+- 新增 `formatEntityName` 函数，统一将内部 ID 转换为中文显示名称。
+- 新增 `sanitizePublicText` 和 `sanitizePublicResult` 函数，清理玩家可见文本中的内部 ID 和英文调试信息。
+- 默认玩家名称从 "冒险者" 改为 "玩家"。
+
+#### 行动结果与反馈优化
+
+- 行动公开摘要改为中文格式："{角色名}尝试「{行动名}」，目标：{目标名}。"
+- NPC 行动结果中文化，区分秘密、部分可见和公开行动的不同描述。
+
+#### 类型系统扩展
+
+- `StoryEvent` 新增 `effects` 字段，支持事件触发后的五种状态更新效果。
+
+完整更新日志见 [CHANGELOG.md](CHANGELOG.md)。
+
 ### v1.6 - 2026-05-24
 
 #### Agent-Based Story Simulation MVP 闭环
