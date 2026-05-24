@@ -153,6 +153,77 @@ function systemJSON(task: string): ChatMessage {
   };
 }
 
+export async function generateRandomStorySeedWithLLM(): Promise<LLMResult<{
+  genre: string;
+  opening: string;
+  ending: string;
+  characters: string;
+  character_details: string;
+  world_setting: string;
+  inspiration_title: string;
+}>> {
+  const fallback = buildLocalRandomStorySeed();
+  return chatJSONWithStatus(
+    [
+      systemJSON([
+        "你是互动剧本和多人跑团式叙事游戏设计师。",
+        "请随机生成一个适合多人互动、包含秘密、冲突、调查或关系博弈的原创故事种子。",
+        "故事必须能直接填入创建故事页面的 6 个输入框。",
+        "必须返回 JSON，字段为：genre, opening, ending, characters, character_details, world_setting, inspiration_title。",
+        "characters 要列出 3-5 个主要可玩人物。",
+        "character_details 要包含每个人的性格、公开目标、秘密目标、人物间关系和冲突。",
+        "opening 要有明确开局事件；ending 要给出可达成的结局方向；world_setting 要说明地点、规则、氛围和限制。",
+        "不要使用内部 ID，不要输出 Markdown。",
+      ].join("\n")),
+      {
+        role: "user",
+        content: JSON.stringify({
+          request: "随机生成一个原创互动故事，并填充创建故事页面的六个字段。",
+          preferred_language: "中文",
+        }),
+      },
+    ],
+    fallback,
+    1800
+  );
+}
+
+function buildLocalRandomStorySeed() {
+  const samples = [
+    {
+      inspiration_title: "雨夜旧书店",
+      genre: "都市悬疑 / 关系博弈",
+      opening: "暴雨切断了老城区的交通，四名陌生人被困在一家即将拆迁的旧书店里。午夜时，店主失踪，柜台上只剩一本写着众人秘密的旧账册。越详细，生成的剧本会越精彩。",
+      ending: "玩家可以选择公开账册真相、共同掩盖某个秘密，或找出真正操纵旧书店事件的人。越详细，生成的剧本会越精彩。",
+      characters: "沈澈、林遥、周牧、许青岚",
+      character_details: [
+        "沈澈：冷静的前记者，公开目标是查清店主失踪真相，秘密目标是找回当年被自己压下的报道证据。",
+        "林遥：敏感的插画师，公开目标是安全离开书店，秘密目标是销毁账册中关于姐姐的记录。",
+        "周牧：圆滑的地产顾问，公开目标是维持局面，秘密目标是拿到拆迁合同的关键把柄。",
+        "许青岚：旧书店常客，公开目标是保护书店遗物，秘密目标是证明店主曾经背叛过自己。",
+        "关系冲突：沈澈和周牧互相怀疑，林遥与许青岚都知道店主的一部分过去，但两人掌握的真相互相矛盾。",
+      ].join("\n"),
+      world_setting: "故事发生在暴雨封锁的老城区旧书店。手机信号不稳定，外界救援要到天亮才会抵达；书店里的旧账册、夹页、录音磁带和墙后暗格会逐步揭露人物秘密。",
+    },
+    {
+      inspiration_title: "雪山温泉旅馆",
+      genre: "封闭空间推理 / 民宿悬疑",
+      opening: "雪崩封住了下山道路，温泉旅馆的所有住客被迫滞留。晚餐后，一位住客声称在浴场看见了三年前失踪者的影子，随后旅馆老板的保险柜被打开，里面的旧照片不翼而飞。越详细，生成的剧本会越精彩。",
+      ending: "玩家需要决定是揭开三年前失踪案、保护仍活着的相关者，还是利用真相换取自己想要的未来。越详细，生成的剧本会越精彩。",
+      characters: "旅馆继承人、摄影师、失踪者妹妹、退休刑警、神秘常客",
+      character_details: [
+        "旅馆继承人：表面温和，公开目标是安抚住客，秘密目标是隐藏父亲留下的旧债。",
+        "摄影师：善于观察，公开目标是记录异常现象，秘密目标是找到能让自己翻身的独家证据。",
+        "失踪者妹妹：固执直接，公开目标是查清姐姐下落，秘密目标是确认某位住客是否参与隐瞒。",
+        "退休刑警：沉默谨慎，公开目标是维持秩序，秘密目标是弥补当年办案失误。",
+        "神秘常客：行踪古怪，公开目标是等待道路恢复，秘密目标是取走藏在旅馆里的遗物。",
+      ].join("\n"),
+      world_setting: "旅馆位于雪山深处，暴雪期间无法离开。旅馆包含温泉浴场、旧仓库、员工宿舍、观景台和封锁的旧客房；每晚会出现新的线索或误导信息。",
+    },
+  ];
+  return samples[Math.floor(Math.random() * samples.length)];
+}
+
 export async function enhanceStorySeedWithLLM(input: {
   genre: string;
   opening: string;

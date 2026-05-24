@@ -27,6 +27,7 @@ function GeneratePageContent() {
   const [characterDetails, setCharacterDetails] = useState("");
   const [worldSetting, setWorldSetting] = useState("");
   const [loading, setLoading] = useState(false);
+  const [randomizing, setRandomizing] = useState(false);
   const [enhancing, setEnhancing] = useState(false);
   const [enhanceMessage, setEnhanceMessage] = useState("");
   const [allowLowPlayability, setAllowLowPlayability] = useState(false);
@@ -34,6 +35,45 @@ function GeneratePageContent() {
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [playability, setPlayability] = useState<PlayabilityReport | null>(null);
   const [error, setError] = useState("");
+
+  const fillStoryFields = (story: Record<string, unknown>) => {
+    setGenre(typeof story.genre === "string" ? story.genre : "");
+    setOpening(typeof story.opening === "string" ? story.opening : "");
+    setEnding(typeof story.ending === "string" ? story.ending : "");
+    setCharacters(typeof story.characters === "string" ? story.characters : "");
+    setCharacterDetails(typeof story.character_details === "string" ? story.character_details : "");
+    setWorldSetting(typeof story.world_setting === "string" ? story.world_setting : "");
+    setBible(null);
+    setValidation(null);
+    setPlayability(null);
+    setAllowLowPlayability(false);
+  };
+
+  const handleRandomStory = async () => {
+    setRandomizing(true);
+    setError("");
+    setEnhanceMessage("");
+
+    try {
+      const res = await fetch("/api/stories/random", { method: "POST" });
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.error || "随机故事生成失败，请稍后重试");
+        return;
+      }
+
+      fillStoryFields(data.story || {});
+      if (data.provider_status?.ok === false) {
+        setEnhanceMessage(`已使用本地随机故事。大模型未成功调用：${data.provider_status.reason || "未知原因"}`);
+      } else {
+        setEnhanceMessage(`大模型已生成随机故事${data.story?.inspiration_title ? `《${data.story.inspiration_title}》` : ""}，并填充到文本框。`);
+      }
+    } catch {
+      setError("随机故事请求失败，请检查网络或服务状态");
+    } finally {
+      setRandomizing(false);
+    }
+  };
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -115,16 +155,14 @@ function GeneratePageContent() {
       }
 
       const enhanced = data.enhanced || {};
-      setGenre(enhanced.genre || genre);
-      setOpening(enhanced.opening || opening);
-      setEnding(enhanced.ending || ending);
-      setCharacters(enhanced.characters || characters);
-      setCharacterDetails(enhanced.character_details || characterDetails);
-      setWorldSetting(enhanced.world_setting || worldSetting);
-      setBible(null);
-      setValidation(null);
-      setPlayability(null);
-      setAllowLowPlayability(false);
+      fillStoryFields({
+        genre: enhanced.genre || genre,
+        opening: enhanced.opening || opening,
+        ending: enhanced.ending || ending,
+        characters: enhanced.characters || characters,
+        character_details: enhanced.character_details || characterDetails,
+        world_setting: enhanced.world_setting || worldSetting,
+      });
 
       if (data.provider_status?.ok === false) {
         setEnhanceMessage(`已使用本地规则完善草稿。大模型未成功调用：${data.provider_status.reason || "未知原因"}`);
@@ -335,6 +373,23 @@ function GeneratePageContent() {
       <h2 className="font-fantasy text-2xl text-amber-400 mb-6 text-center">创建故事</h2>
 
       <div className="panel space-y-4">
+        <div className="rounded border border-amber-600/30 bg-amber-900/10 p-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-sm text-amber-300 font-medium">没有灵感？</p>
+              <p className="text-xs text-parchant-500 mt-1">点击随机故事，让大模型自动生成题材、开场、结局、人物关系和世界观。</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRandomStory}
+              disabled={randomizing || loading}
+              className="btn-secondary px-4 py-2 text-sm disabled:opacity-50"
+            >
+              {randomizing ? "随机生成中..." : "随机故事"}
+            </button>
+          </div>
+        </div>
+
         <div>
           <label className="text-sm text-parchant-300 mb-1 block">题材</label>
           <input
@@ -395,6 +450,12 @@ function GeneratePageContent() {
             className="input-field h-24 resize-none"
           />
         </div>
+
+        {enhanceMessage && (
+          <div className="bg-emerald-900/20 border border-emerald-600/50 rounded p-3 text-sm text-emerald-300">
+            {enhanceMessage}
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-900/20 border border-red-600/50 rounded p-3 text-sm text-red-400">
