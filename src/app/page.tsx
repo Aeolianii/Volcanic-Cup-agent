@@ -29,26 +29,30 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative isolate flex min-h-[calc(100vh-5rem)] flex-col items-center justify-center overflow-hidden py-16">
+    <div className="relative left-1/2 isolate -my-6 flex min-h-[calc(100vh-3.25rem)] w-screen -translate-x-1/2 flex-col items-center justify-center overflow-hidden px-4 py-16">
       <div
         aria-hidden="true"
-        className="absolute inset-y-0 left-1/2 -z-30 w-screen -translate-x-1/2 bg-cover bg-center bg-no-repeat"
+        className="absolute inset-0 -z-30 bg-top bg-no-repeat"
         style={{
           backgroundImage: "url('/images/home-background.png')",
-          backgroundAttachment: "fixed",
+          backgroundSize: "100% auto",
         }}
       />
       <div
         aria-hidden="true"
-        className="absolute inset-y-0 left-1/2 -z-20 w-screen -translate-x-1/2"
+        className="absolute inset-0 -z-20"
         style={{
           background:
-            "radial-gradient(circle at center 34%, rgba(245, 158, 11, 0.04), rgba(10, 12, 24, 0.2) 38%, rgba(10, 12, 24, 0.54) 78%), linear-gradient(90deg, rgba(10, 12, 24, 0.58), rgba(10, 12, 24, 0.18) 48%, rgba(10, 12, 24, 0.62)), linear-gradient(180deg, rgba(10, 12, 24, 0.58), rgba(10, 12, 24, 0.12) 42%, rgba(10, 12, 24, 0.68))",
+            "linear-gradient(90deg, rgba(10, 12, 24, 0.48), rgba(10, 12, 24, 0.1) 48%, rgba(10, 12, 24, 0.5)), linear-gradient(180deg, rgba(10, 12, 24, 0.34), rgba(10, 12, 24, 0.06) 44%, rgba(10, 12, 24, 0.62))",
         }}
       />
       <div
         aria-hidden="true"
-        className="absolute inset-y-0 left-1/2 -z-10 w-screen -translate-x-1/2 bg-midnight-950/0"
+        className="absolute inset-x-0 bottom-0 -z-20 h-1/3 bg-gradient-to-b from-transparent to-midnight-900"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 bg-midnight-950/0"
       />
       {/* Hero */}
       <div className="text-center mb-12 drop-shadow-[0_2px_18px_rgba(0,0,0,0.85)]">
