@@ -32,9 +32,7 @@ export function FreeActionInput({
     <div className="panel">
       <div className="flex items-center gap-2 mb-2">
         <h3 className="font-fantasy text-amber-400 text-sm">自由行动</h3>
-        <span className="text-[10px] text-parchment-500 bg-midnight-700 px-1.5 py-0.5 rounded">
-          按 Enter 提交
-        </span>
+        <span className="badge-amber text-[10px]">Enter 提交</span>
       </div>
       <div className="flex gap-2">
         <input
@@ -49,13 +47,13 @@ export function FreeActionInput({
         <button
           onClick={handleSubmit}
           disabled={disabled || !input.trim()}
-          className="btn-primary text-sm px-4 whitespace-nowrap disabled:opacity-60 disabled:cursor-wait"
+          className="btn-primary text-sm px-5 whitespace-nowrap"
         >
           {disabled ? "处理中" : "执行行动"}
         </button>
       </div>
-      <p className="text-[10px] text-parchment-600 mt-1">
-        描述你想做什么，系统会自动解析为结构化行动。
+      <p className="text-[11px] text-parchment-600 mt-2">
+        描述你想做什么，系统会自动解析为结构化行动并联动规则引擎。
       </p>
     </div>
   );

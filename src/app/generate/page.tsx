@@ -9,7 +9,11 @@ import type { PlayabilityReport } from "@/engine/storyPlayabilityAnalyzer";
 
 export default function GeneratePage() {
   return (
-    <Suspense fallback={<div className="panel text-center">加载中...</div>}>
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-10 h-10 rounded-full border-2 border-amber-600/20 border-t-amber-400 animate-spin" />
+      </div>
+    }>
       <GeneratePageContent />
     </Suspense>
   );
@@ -85,7 +89,6 @@ function GeneratePageContent() {
 
     try {
       if (isDemo) {
-        // Use demo story directly
         setBible(DEMO_STORY_BIBLE);
         setValidation({ valid: true, errors: [], warnings: [] });
         setPlayability(null);
@@ -202,17 +205,29 @@ function GeneratePageContent() {
     }
   };
 
-  // Pre-fill demo
   if (isDemo && !bible) {
     return (
-      <div className="max-w-2xl mx-auto">
-        <div className="panel text-center py-12">
-          <h2 className="font-fantasy text-2xl text-amber-400 mb-4">失落圣杯之夜</h2>
-          <p className="text-parchant-400 mb-6">
-            西幻 + 权谋 + 推理 · 4 角色 · 4 结局
-          </p>
-          <button onClick={handleGenerate} disabled={loading} className="btn-primary text-lg px-8">
-            {loading ? "加载中..." : "加载 Demo"}
+      <div className="max-w-lg mx-auto animate-fade-in">
+        <div className="panel-immerse text-center py-16">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500/15 to-amber-700/10 border border-amber-600/20 flex items-center justify-center mx-auto mb-6">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-amber-400">
+              <path d="M3 21h18M5 21V7l3-3v4l4-4 4 4V3l3 3v18" />
+            </svg>
+          </div>
+          <h2 className="font-fantasy text-3xl text-amber-300 mb-3">失落圣杯之夜</h2>
+          <p className="text-parchment-400 mb-2 text-lg">西幻 + 权谋 + 推理</p>
+          <div className="flex items-center justify-center gap-4 text-xs text-parchment-600 mb-8">
+            <span className="badge-amber">4 角色</span>
+            <span className="badge-amber">4 结局</span>
+            <span className="badge-amber">Demo</span>
+          </div>
+          <button onClick={handleGenerate} disabled={loading} className="btn-primary text-lg px-10 py-3">
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full border-2 border-midnight-950/30 border-t-midnight-950 animate-spin" />
+                加载中...
+              </span>
+            ) : "加载 Demo"}
           </button>
         </div>
       </div>
@@ -221,45 +236,53 @@ function GeneratePageContent() {
 
   if (bible) {
     return (
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
         {/* Story Bible Summary */}
-        <div className="panel">
-          <h2 className="font-fantasy text-2xl text-amber-400 mb-4">{bible.title}</h2>
-          <p className="text-parchant-400 mb-4">{bible.world_setting.atmosphere}</p>
+        <div className="panel-glow">
+          <h2 className="font-fantasy text-2xl text-amber-300 mb-1">{bible.title}</h2>
+          <p className="text-parchment-400 text-sm mb-6">{bible.world_setting.atmosphere}</p>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <h3 className="text-sm text-amber-500 mb-2">角色 ({bible.roles.length})</h3>
-              <ul className="text-sm text-parchant-300 space-y-1">
+          <div className="grid grid-cols-2 gap-5 mb-5">
+            <div className="glass p-4">
+              <h3 className="text-xs text-amber-500/80 uppercase tracking-wider mb-3">可玩角色 ({bible.roles.length})</h3>
+              <ul className="text-sm text-parchant-300 space-y-2">
                 {bible.roles.map((r) => (
-                  <li key={r.id}>• {r.name} — {r.public_identity}</li>
+                  <li key={r.id} className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60" />
+                    <span className="font-medium">{r.name}</span>
+                    <span className="text-parchant-600">&mdash; {r.public_identity}</span>
+                  </li>
                 ))}
               </ul>
             </div>
-            <div>
-              <h3 className="text-sm text-amber-500 mb-2">NPC ({bible.npcs.length})</h3>
-              <ul className="text-sm text-parchant-300 space-y-1">
+            <div className="glass p-4">
+              <h3 className="text-xs text-amber-500/80 uppercase tracking-wider mb-3">NPC ({bible.npcs.length})</h3>
+              <ul className="text-sm text-parchant-300 space-y-2">
                 {bible.npcs.map((n) => (
-                  <li key={n.id}>• {n.name} — {n.public_identity}</li>
+                  <li key={n.id} className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500/40" />
+                    <span className="font-medium">{n.name}</span>
+                    <span className="text-parchant-600">&mdash; {n.public_identity}</span>
+                  </li>
                 ))}
               </ul>
             </div>
           </div>
 
           {bible.runtime_modules && (
-            <div className="mb-4 p-3 rounded border border-midnight-600 bg-midnight-700/30">
-              <h3 className="text-sm text-amber-500 mb-2">玩法模块</h3>
-              <div className="flex flex-wrap gap-1 text-xs">
-                <span className="bg-midnight-600 px-2 py-1 rounded text-parchant-300">
-                  类型：{runtimeProfileLabel(bible.runtime_modules.genre_profile)}
+            <div className="glass p-4 mb-5">
+              <h3 className="text-xs text-amber-500/80 uppercase tracking-wider mb-3">玩法模块</h3>
+              <div className="flex flex-wrap gap-1.5">
+                <span className="badge-amber text-xs">
+                  {runtimeProfileLabel(bible.runtime_modules.genre_profile)}
                 </span>
-                <span className="bg-midnight-600 px-2 py-1 rounded text-parchant-300">
-                  后果：{consequenceModeLabel(bible.runtime_modules.consequence_mode)}
+                <span className="badge-amber text-xs">
+                  {consequenceModeLabel(bible.runtime_modules.consequence_mode)}
                 </span>
                 {Object.entries(bible.runtime_modules.enabled)
                   .filter(([, enabled]) => enabled)
                   .map(([key]) => (
-                    <span key={key} className="bg-midnight-600 px-2 py-1 rounded text-parchant-300">
+                    <span key={key} className="badge-blue text-xs">
                       {moduleLabel(key)}
                     </span>
                   ))}
@@ -268,41 +291,55 @@ function GeneratePageContent() {
           )}
 
           {playability && (
-            <div className="mb-4 p-3 rounded border border-amber-600/40 bg-amber-900/10">
-              <h3 className="text-sm text-amber-400 mb-1">可玩性分析：{playability.merged.playable_score}/100</h3>
+            <div className={`glass border p-4 mb-5 ${
+              playability.merged.playable_score >= 60
+                ? "border-emerald-600/30"
+                : "border-orange-600/40"
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm text-amber-400 font-medium">可玩性分析</h3>
+                <span className={`text-lg font-bold ${
+                  playability.merged.playable_score >= 60 ? "text-emerald-400" : "text-orange-400"
+                }`}>
+                  {playability.merged.playable_score}/100
+                </span>
+              </div>
+              {/* Score bar */}
+              <div className="w-full bg-midnight-800 rounded-full h-2 mb-3">
+                <div
+                  className={`h-2 rounded-full transition-all duration-700 ${
+                    playability.merged.playable_score >= 80 ? "bg-emerald-500" :
+                    playability.merged.playable_score >= 60 ? "bg-amber-500" :
+                    "bg-orange-500"
+                  }`}
+                  style={{ width: `${playability.merged.playable_score}%` }}
+                />
+              </div>
               {playability.merged.design_notes.length > 0 && (
-                <ul className="text-xs text-parchant-400 list-disc list-inside mb-2">
+                <ul className="text-xs text-parchant-400 space-y-1 mb-3">
                   {playability.merged.design_notes.map((note, index) => (
-                    <li key={index}>{note}</li>
+                    <li key={index} className="flex items-start gap-2">
+                      <span className="text-amber-600 mt-0.5">&#x2022;</span>
+                      {note}
+                    </li>
                   ))}
                 </ul>
               )}
-              {playability.merged.suggested_fixes.length > 0 && (
-                <p className="text-xs text-parchant-500">
-                  建议：{playability.merged.suggested_fixes.slice(0, 3).join("；")}
-                </p>
-              )}
               {isLowPlayability(playability) && (
-                <div className="mt-3 rounded border border-orange-500/50 bg-orange-950/30 p-3">
-                  <p className="text-sm text-orange-200 mb-2">
-                    低可玩性分析得分可能会影响游戏体验。你可以让 AI 先完善剧本和人设，补强人物性格、公开目标、秘密目标、人物关系和核心冲突。
+                <div className="mt-3 rounded-xl border border-orange-600/30 bg-orange-950/20 p-4">
+                  <p className="text-sm text-orange-200 mb-3">
+                    低可玩性可能影响游戏体验。建议让 AI 完善剧本和人设后再生成。
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                      type="button"
-                      onClick={handleEnhanceWithAI}
-                      disabled={enhancing}
-                      className="btn-primary text-sm px-4 py-2 disabled:opacity-50"
-                    >
+                    <button onClick={handleEnhanceWithAI} disabled={enhancing} className="btn-primary text-sm flex-1">
                       {enhancing ? "AI 完善中..." : "由 AI 完善剧本和人设"}
                     </button>
                     <button
-                      type="button"
                       onClick={() => {
                         setAllowLowPlayability(true);
                         setEnhanceMessage("已保留当前剧本，你可以继续创建房间或手动修改。");
                       }}
-                      className="btn-secondary text-sm px-4 py-2"
+                      className="btn-secondary text-sm flex-1"
                     >
                       暂不完善，继续使用
                     </button>
@@ -313,40 +350,62 @@ function GeneratePageContent() {
           )}
 
           {enhanceMessage && (
-            <div className="mb-4 p-3 rounded border border-emerald-600/40 bg-emerald-900/10 text-sm text-emerald-200">
-              {enhanceMessage}
+            <div className="glass border border-emerald-600/30 p-4 text-sm text-emerald-200 mb-5">
+              <div className="flex items-start gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-400 mt-0.5 shrink-0"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+                {enhanceMessage}
+              </div>
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <h3 className="text-sm text-amber-500 mb-2">阵营</h3>
-              <ul className="text-sm text-parchant-300">
+          <div className="grid grid-cols-2 gap-5 mb-5">
+            <div className="glass p-4">
+              <h3 className="text-xs text-amber-500/80 uppercase tracking-wider mb-3">阵营 ({bible.factions.length})</h3>
+              <div className="space-y-2">
                 {bible.factions.map((f) => (
-                  <li key={f.id}>• {f.name}</li>
+                  <div key={f.id} className="flex items-center gap-2 text-sm text-parchant-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500/60" />
+                    {f.name}
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm text-amber-500 mb-2">结局</h3>
-              <ul className="text-sm text-parchant-300">
+            <div className="glass p-4">
+              <h3 className="text-xs text-amber-500/80 uppercase tracking-wider mb-3">结局 ({bible.endings.length})</h3>
+              <div className="space-y-2">
                 {bible.endings.map((e) => (
-                  <li key={e.id}>• {e.title}</li>
+                  <div key={e.id} className="flex items-center gap-2 text-sm text-parchant-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500/40" />
+                    {e.title}
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           </div>
 
-          {/* Validation */}
           {validation && (
-            <div className={`p-3 rounded border ${validation.valid ? "border-green-600/50 bg-green-900/10" : "border-red-600/50 bg-red-900/10"}`}>
-              <h4 className="text-sm font-medium mb-1">
-                {validation.valid ? "✅ 校验通过" : "❌ 校验未通过"}
-              </h4>
+            <div className={`rounded-xl border p-4 ${
+              validation.valid
+                ? "border-emerald-600/30 bg-emerald-950/10"
+                : "border-rose-600/30 bg-rose-950/10"
+            }`}>
+              <div className="flex items-center gap-2 mb-2">
+                {validation.valid ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-400"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-rose-400"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                )}
+                <span className={`text-sm font-medium ${validation.valid ? "text-emerald-400" : "text-rose-400"}`}>
+                  {validation.valid ? "校验通过" : "校验未通过"}
+                </span>
+              </div>
               {validation.errors.length > 0 && (
-                <ul className="text-xs text-red-400 list-disc list-inside">
+                <ul className="text-xs text-rose-400 space-y-1">
                   {validation.errors.map((e, i) => (
-                    <li key={i}>{e.field}: {e.message}</li>
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="shrink-0 mt-0.5">&#x2022;</span>
+                      <span>{e.field}: {e.message}</span>
+                    </li>
                   ))}
                 </ul>
               )}
@@ -357,7 +416,7 @@ function GeneratePageContent() {
         <button
           onClick={handleCreateRoom}
           disabled={validation?.valid === false || (playability?.merged.playable === false && !allowLowPlayability)}
-          className="btn-primary w-full text-lg py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn-primary w-full text-lg py-4 font-fantasy tracking-wider disabled:opacity-40 disabled:cursor-not-allowed"
         >
           创建房间
         </button>
@@ -367,29 +426,31 @@ function GeneratePageContent() {
 
   // Input form
   return (
-    <div className="max-w-2xl mx-auto">
-      <h2 className="font-fantasy text-2xl text-amber-400 mb-6 text-center">创建故事</h2>
+    <div className="max-w-2xl mx-auto animate-fade-in">
+      <h2 className="font-fantasy text-2xl text-amber-400 mb-6 text-center">
+        <span className="heading-ornament">创建故事</span>
+      </h2>
 
-      <div className="panel space-y-4">
-        <div className="rounded border border-amber-600/30 bg-amber-900/10 p-3">
+      <div className="panel-glow space-y-5">
+        {/* Random story hint */}
+        <div className="rounded-xl border border-amber-600/20 bg-gradient-to-r from-amber-950/20 to-transparent p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <p className="text-sm text-amber-300 font-medium">没有灵感？</p>
-              <p className="text-xs text-parchant-500 mt-1">点击随机故事，让大模型自动生成题材、开场、结局、人物关系和世界观。</p>
+              <p className="text-xs text-parchant-500 mt-1">让大模型自动生成题材、开场、结局、人物关系和世界观。</p>
             </div>
             <button
-              type="button"
               onClick={handleRandomStory}
               disabled={randomizing || loading}
-              className="btn-secondary px-4 py-2 text-sm disabled:opacity-50"
+              className="btn-secondary text-sm whitespace-nowrap disabled:opacity-50"
             >
-              {randomizing ? "随机生成中..." : "随机故事"}
+              {randomizing ? "生成中..." : "随机故事"}
             </button>
           </div>
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">题材</label>
+          <label className="text-xs text-parchant-400 uppercase tracking-wider mb-1.5 block">题材</label>
           <input
             type="text"
             value={genre}
@@ -400,7 +461,7 @@ function GeneratePageContent() {
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">开场设定</label>
+          <label className="text-xs text-parchant-400 uppercase tracking-wider mb-1.5 block">开场设定</label>
           <textarea
             value={opening}
             onChange={(e) => setOpening(e.target.value)}
@@ -410,7 +471,7 @@ function GeneratePageContent() {
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">结局方向</label>
+          <label className="text-xs text-parchant-400 uppercase tracking-wider mb-1.5 block">结局方向</label>
           <textarea
             value={ending}
             onChange={(e) => setEnding(e.target.value)}
@@ -420,7 +481,7 @@ function GeneratePageContent() {
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">人物</label>
+          <label className="text-xs text-parchant-400 uppercase tracking-wider mb-1.5 block">人物</label>
           <textarea
             value={characters}
             onChange={(e) => setCharacters(e.target.value)}
@@ -430,17 +491,17 @@ function GeneratePageContent() {
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">人物性格和人物间关系（选填）</label>
+          <label className="text-xs text-parchant-400 uppercase tracking-wider mb-1.5 block">人物性格和关系（选填）</label>
           <textarea
             value={characterDetails}
             onChange={(e) => setCharacterDetails(e.target.value)}
-            placeholder="可填写人物性格、隐藏关系、矛盾、旧怨、阵营关系等；不填也可以生成。"
+            placeholder="可填写人物性格、隐藏关系、矛盾、旧怨、阵营关系等"
             className="input-field h-24 resize-none"
           />
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">世界观</label>
+          <label className="text-xs text-parchant-400 uppercase tracking-wider mb-1.5 block">世界观</label>
           <textarea
             value={worldSetting}
             onChange={(e) => setWorldSetting(e.target.value)}
@@ -450,13 +511,13 @@ function GeneratePageContent() {
         </div>
 
         {enhanceMessage && (
-          <div className="bg-emerald-900/20 border border-emerald-600/50 rounded p-3 text-sm text-emerald-300">
+          <div className="rounded-xl border border-emerald-600/30 bg-emerald-950/10 p-4 text-sm text-emerald-200">
             {enhanceMessage}
           </div>
         )}
 
         {error && (
-          <div className="bg-red-900/20 border border-red-600/50 rounded p-3 text-sm text-red-400">
+          <div className="rounded-xl border border-rose-600/30 bg-rose-950/10 p-4 text-sm text-rose-300">
             {error}
           </div>
         )}
@@ -464,7 +525,7 @@ function GeneratePageContent() {
         <button
           onClick={handleGenerate}
           disabled={loading || (!isDemo && !genre && !opening && !ending && !characters && !worldSetting)}
-          className="btn-primary w-full py-3"
+          className="btn-primary w-full py-3.5 text-base font-medium"
         >
           {loading ? "生成中..." : "生成 Story Bible"}
         </button>
@@ -479,44 +540,27 @@ function isLowPlayability(playability: PlayabilityReport): boolean {
 
 function runtimeProfileLabel(profile: string): string {
   const labels: Record<string, string> = {
-    campus_romance: "校园言情",
-    romance: "恋爱",
-    comedy: "搞笑",
-    mystery: "推理",
-    horror: "恐怖",
-    political_intrigue: "权谋",
-    combat_adventure: "战斗冒险",
-    workplace: "职场",
-    generic: "通用",
+    campus_romance: "校园言情", romance: "恋爱", comedy: "搞笑",
+    mystery: "推理", horror: "恐怖", political_intrigue: "权谋",
+    combat_adventure: "战斗冒险", workplace: "职场", generic: "通用",
   };
   return labels[profile] || profile;
 }
 
 function consequenceModeLabel(mode: string): string {
   const labels: Record<string, string> = {
-    lethal: "可死亡",
-    romance_failure: "攻略失败",
-    comic_setback: "整活翻车",
-    social_setback: "社交受挫",
-    investigation_failure: "推理受阻",
+    lethal: "可死亡", romance_failure: "攻略失败", comic_setback: "整活翻车",
+    social_setback: "社交受挫", investigation_failure: "推理受阻",
   };
   return labels[mode] || mode;
 }
 
 function moduleLabel(key: string): string {
   const labels: Record<string, string> = {
-    knowledge_fog: "信息迷雾",
-    investigation: "调查",
-    misinformation: "误导信息",
-    factions: "阵营",
-    private_chat: "私聊",
-    relationship_routes: "关系线",
-    combat: "战斗",
-    character_death: "死亡",
-    ghost_mode: "幽灵旁观",
-    failure_screen: "失败界面",
-    comic_setbacks: "搞笑挫折",
-    gm_balancer: "GM 平衡",
+    knowledge_fog: "信息迷雾", investigation: "调查", misinformation: "误导信息",
+    factions: "阵营", private_chat: "私聊", relationship_routes: "关系线",
+    combat: "战斗", character_death: "死亡", ghost_mode: "幽灵旁观",
+    failure_screen: "失败界面", comic_setbacks: "搞笑挫折", gm_balancer: "GM 平衡",
     auto_simulation_after_exit: "离场推演",
   };
   return labels[key] || key;

@@ -28,7 +28,6 @@ export default function RoomPage() {
   const [actionPending, setActionPending] = useState(false);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
-  // Initialize: fetch room state
   useEffect(() => {
     const init = async () => {
       try {
@@ -46,7 +45,6 @@ export default function RoomPage() {
           dispatch({ type: "SET_STORY_BIBLE", bible: data.story_bible });
         }
 
-        // If player not in room, try to join
         if (!room.players.some((p: { player_id: string }) => p.player_id === playerId)) {
           const joinRes = await fetch(`/api/rooms/${roomId}/join`, {
             method: "POST",
@@ -82,7 +80,6 @@ export default function RoomPage() {
     localStorage.setItem("player_id", playerId);
   }, [roomId, playerId, playerName]);
 
-  // Select Role
   const handleSelectRole = async (roleId: string) => {
     try {
       const res = await fetch(`/api/rooms/${roomId}/select-role`, {
@@ -99,7 +96,6 @@ export default function RoomPage() {
     }
   };
 
-  // Start Story
   const handleStartStory = async () => {
     try {
       const res = await fetch(`/api/rooms/${roomId}/start`, {
@@ -112,8 +108,6 @@ export default function RoomPage() {
           dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
         }
         dispatch({ type: "SET_PHASE", phase: "playing" });
-
-        // Fetch initial player view
         await refreshPlayerView();
       }
     } catch {
@@ -121,7 +115,6 @@ export default function RoomPage() {
     }
   };
 
-  // Refresh player view
   const refreshPlayerView = async (suggestedActionsOverride?: SuggestedAction[]) => {
     try {
       const res = await fetch(`/api/rooms/${roomId}/players/${playerId}/view`);
@@ -133,7 +126,6 @@ export default function RoomPage() {
             ? { ...data.player_view, suggested_actions: suggestedActionsOverride }
             : data.player_view,
         });
-        // Add GM opening narration if first view
         if (state.chatMessages.length === 0) {
           const openingContent =
             data.gm_narrative?.narration || data.player_view?.active_events?.[0]?.description || "";
@@ -157,7 +149,7 @@ export default function RoomPage() {
         }
       }
     } catch {
-      // Silently fail - will retry
+      // Silently fail
     }
   };
 
@@ -169,7 +161,6 @@ export default function RoomPage() {
     });
   }, [state.playerView]);
 
-  // Send chat message
   const handleSendMessage = useCallback(
     async (content: string, channelId = "public") => {
       const tempMsg: ChatMessage = {
@@ -196,13 +187,12 @@ export default function RoomPage() {
           setActionFeedback(data.action_hint.suggestion);
         }
       } catch {
-        // Message sent optimistically
+        // Sent optimistically
       }
     },
     [roomId, playerId, playerName]
   );
 
-  // Send action
   const handleSendAction = useCallback(
     async (actionText: string) => {
       if (actionPending) return;
@@ -210,7 +200,7 @@ export default function RoomPage() {
       const previousActions = state.playerView?.suggested_actions || [];
       setActionPending(true);
       setPendingActionId("free_action");
-      setActionFeedback(`已提交行动：“${actionText}”。正在解析与结算...`);
+      setActionFeedback(`已提交行动："${actionText}"。正在解析与结算...`);
       try {
         const res = await fetch(`/api/rooms/${roomId}/actions`, {
           method: "POST",
@@ -225,18 +215,9 @@ export default function RoomPage() {
         const data = await res.json();
 
         if (data.success) {
-          setActionFeedback(
-            data.rule_result?.public_result
-              ? `${data.rule_result.public_result} GM 正在续写下一段...`
-              : "行动已结算，GM 正在续写下一段..."
-          );
-
-          // Add GM response
           if (data.gm_message) {
             dispatch({ type: "ADD_CHAT_MESSAGE", message: data.gm_message });
           }
-
-          // Update world state
           if (data.world_state) {
             dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
           }
@@ -246,16 +227,13 @@ export default function RoomPage() {
           const gmStatusText = formatGMProviderStatus(data.gm_provider_status);
           setActionFeedback(gmStatusText || "行动已结算，结果已写入 GM 叙事。");
 
-          // Check ending
           if (data.ending) {
             dispatch({ type: "SET_PHASE", phase: "ending" });
             router.push(`/ending/${roomId}?ending_id=${data.ending.id}`);
             return;
           }
 
-          // Refresh view
           await refreshPlayerView(nextSuggestedActions);
-
         } else {
           replaceSuggestedActions(previousActions);
           setActionFeedback("行动失败：" + (data.error || "未知错误"));
@@ -271,7 +249,6 @@ export default function RoomPage() {
     [actionPending, roomId, playerId, state.playerView, replaceSuggestedActions]
   );
 
-  // Handle suggested action
   const handleSelectSuggestedAction = useCallback(
     async (action: {
       id: string;
@@ -289,7 +266,7 @@ export default function RoomPage() {
       replaceSuggestedActions(previousActions.filter((item) => item.id !== action.id));
       setActionPending(true);
       setPendingActionId(action.id);
-      setActionFeedback(`已选择推荐行动：“${action.label}”。正在结算...`);
+      setActionFeedback(`已选择推荐行动："${action.label}"。正在结算...`);
       try {
         const res = await fetch(`/api/rooms/${roomId}/actions`, {
           method: "POST",
@@ -310,12 +287,6 @@ export default function RoomPage() {
         const data = await res.json();
 
         if (data.success) {
-          setActionFeedback(
-            data.rule_result?.public_result
-              ? `${data.rule_result.public_result} GM 正在续写下一段...`
-              : "行动已结算，GM 正在续写下一段..."
-          );
-
           if (data.gm_message) {
             dispatch({ type: "ADD_CHAT_MESSAGE", message: data.gm_message });
           }
@@ -359,23 +330,28 @@ export default function RoomPage() {
     [state.chatMessages, handleSendAction]
   );
 
-  // ---- RENDER ----
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-parchant-500 text-lg">加载中...</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="w-12 h-12 rounded-full border-2 border-amber-600/30 border-t-amber-400 animate-spin" />
+        <p className="text-parchment-500 text-lg">正在进入故事世界...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <p className="text-red-400 text-lg mb-4">{error}</p>
-        <button onClick={() => router.push("/")} className="btn-primary">
-          返回首页
-        </button>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in">
+        <div className="panel-glow text-center max-w-md">
+          <div className="w-16 h-16 rounded-full bg-rose-900/20 border border-rose-700/30 flex items-center justify-center mx-auto mb-4">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-rose-400"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          </div>
+          <p className="text-rose-300 text-lg mb-1">出错了</p>
+          <p className="text-parchment-500 mb-6">{error}</p>
+          <button onClick={() => router.push("/")} className="btn-primary w-full">
+            返回首页
+          </button>
+        </div>
       </div>
     );
   }
@@ -387,35 +363,48 @@ export default function RoomPage() {
     const currentPlayer = room.players.find((p) => p.player_id === playerId);
 
     return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="panel text-center">
-          <h2 className="font-fantasy text-2xl text-amber-400 mb-2">房间等待中</h2>
-          <p className="text-3xl font-mono text-amber-300 tracking-widest mb-2">{room.room_id}</p>
-          <p className="text-parchant-500 text-sm">分享房间号给其他玩家</p>
-          <p className="text-xs text-parchant-600 mt-1">
-            状态: {room.status === "waiting" ? "等待玩家" : "准备开始"}
-          </p>
+      <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+        {/* Room Header */}
+        <div className="panel-glow text-center">
+          <p className="text-xs text-parchment-600 uppercase tracking-widest mb-2">房间等待中</p>
+          <h2 className="text-3xl font-bold font-mono text-amber-300 tracking-[0.3em] mb-2">{room.room_id}</h2>
+          <p className="text-parchment-500 text-sm">分享房间号给其他玩家加入</p>
+          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-midnight-800/60 border border-midnight-600/50">
+            <span className={`w-2 h-2 rounded-full ${room.players.length > 1 ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
+            <span className="text-xs text-parchment-400">
+              {room.status === "waiting" ? "等待玩家加入" : "准备开始"} &middot; {room.players.length}/{room.max_players}
+            </span>
+          </div>
         </div>
 
         {/* Player List */}
         <div className="panel">
-          <h3 className="font-fantasy text-amber-400 mb-3">
-            玩家 ({room.players.length}/{room.max_players})
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-fantasy text-amber-400 text-sm">当前玩家</h3>
+            <span className="text-xs text-parchment-600">{room.players.length}/{room.max_players}</span>
+          </div>
           <div className="space-y-2">
-            {room.players.map((p) => (
+            {room.players.map((p, i) => (
               <div
                 key={p.player_id}
-                className="flex items-center justify-between p-2 rounded bg-midnight-700/50"
+                className="flex items-center justify-between p-3 rounded-lg bg-midnight-800/50 border border-midnight-700/40 animate-in"
+                style={{ animationDelay: `${i * 0.05}s` }}
               >
-                <div>
-                  <span className="text-parchant-200">{p.name}</span>
-                  {p.is_owner && (
-                    <span className="text-amber-500 text-xs ml-2">[房主]</span>
-                  )}
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-600/20 to-amber-800/10 border border-amber-700/20 flex items-center justify-center">
+                    <span className="text-sm text-amber-400 font-fantasy">
+                      {p.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-parchment-200 font-medium">{p.name}</span>
+                    {p.is_owner && (
+                      <span className="badge-amber ml-2">房主</span>
+                    )}
+                  </div>
                 </div>
-                <span className="text-xs text-parchant-500">
-                  {p.role ? `已选择: ${p.role.name}` : "未选择角色"}
+                <span className={`text-xs ${p.role ? "text-emerald-400" : "text-parchment-600"}`}>
+                  {p.role ? p.role.name : "未选择角色"}
                 </span>
               </div>
             ))}
@@ -424,23 +413,35 @@ export default function RoomPage() {
 
         {/* Role Selection */}
         {!currentPlayer?.role && (
-          <div className="panel">
-            <h3 className="font-fantasy text-amber-400 mb-3">选择角色</h3>
+          <div className="panel-glow animate-in">
+            <h3 className="font-fantasy text-amber-400 text-sm mb-4">选择你的角色</h3>
             <div className="grid grid-cols-2 gap-3">
               {(room as Room & { available_roles?: { id: string; name: string; public_identity: string }[] }).available_roles?.length
-                ? (room as Room & { available_roles: { id: string; name: string; public_identity: string }[] }).available_roles.map((role: { id: string; name: string; public_identity: string }) => (
-                    <button
-                      key={role.id}
-                      onClick={() => handleSelectRole(role.id)}
-                      disabled={room.players.some((p: { role_id: string | null }) => p.role_id === role.id)}
-                      className="p-3 rounded border border-midnight-600 hover:border-amber-500/50 text-left disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <span className="text-parchant-200 font-medium block">{role.name}</span>
-                      <span className="text-xs text-parchant-500">{role.public_identity}</span>
-                    </button>
-                  ))
+                ? (room as Room & { available_roles: { id: string; name: string; public_identity: string }[] }).available_roles.map((role: { id: string; name: string; public_identity: string }) => {
+                    const taken = room.players.some((p: { role_id: string | null }) => p.role_id === role.id);
+                    return (
+                      <button
+                        key={role.id}
+                        onClick={() => handleSelectRole(role.id)}
+                        disabled={taken}
+                        className={`p-4 rounded-xl border text-left transition-all duration-300 ${
+                          taken
+                            ? "border-midnight-700/30 bg-midnight-800/30 opacity-40 cursor-not-allowed"
+                            : "border-midnight-600/50 bg-midnight-800/40 hover:border-amber-600/50 hover:bg-midnight-800/60 hover:shadow-lg hover:shadow-amber-500/5"
+                        }`}
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-700/20 flex items-center justify-center mb-3">
+                          <span className="text-amber-400 font-fantasy text-sm">{role.name.charAt(0)}</span>
+                        </div>
+                        <span className="text-parchment-200 font-medium block mb-1">{role.name}</span>
+                        <span className="text-xs text-parchment-500">{role.public_identity}</span>
+                        {taken && (
+                          <span className="block text-xs text-amber-600 mt-2">已被选择</span>
+                        )}
+                      </button>
+                    );
+                  })
                 : (
-                  // Fetch roles from the story bible via API
                   <RoleSelector
                     roomId={roomId}
                     onSelect={handleSelectRole}
@@ -451,22 +452,23 @@ export default function RoomPage() {
           </div>
         )}
 
-        {/* Start Button */}
-        {isOwner && (
-          <button
-            onClick={handleStartStory}
-            disabled={room.players.some((p: { role_id: string | null }) => !p.role_id)}
-            className="btn-primary w-full py-3 text-lg"
-          >
-            开始故事
-          </button>
-        )}
-
-        {!isOwner && (
-          <p className="text-center text-parchant-600 text-sm">
-            等待房主开始故事...
-          </p>
-        )}
+        {/* Start / Wait */}
+        <div className="text-center">
+          {isOwner ? (
+            <button
+              onClick={handleStartStory}
+              disabled={room.players.some((p: { role_id: string | null }) => !p.role_id)}
+              className="btn-primary w-full py-4 text-lg font-fantasy tracking-wider"
+            >
+              开始故事
+            </button>
+          ) : (
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 rounded-full border-2 border-amber-600/20 border-t-amber-500 animate-spin" />
+              <p className="text-parchment-500 text-sm">等待房主开始故事...</p>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -488,19 +490,19 @@ export default function RoomPage() {
 
     return (
       <GameContext.Provider value={{ state, dispatch }}>
-        <div>
+        <div className="animate-fade-in">
           {actionFeedback && (
-            <div className="mb-4 flex items-start gap-3 bg-midnight-700 border border-amber-600/50 rounded p-3 text-sm text-amber-300">
+            <div className="mb-4 flex items-start gap-3 glass-strong border border-amber-700/30 rounded-xl p-4 text-sm text-amber-200 animate-in">
               {actionPending && (
-                <span className="mt-1 h-2 w-2 rounded-full bg-amber-300 animate-pulse shrink-0" />
+                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
               )}
               <span className="flex-1">{actionFeedback}</span>
               <button
                 onClick={() => setActionFeedback("")}
-                className="text-parchant-600 hover:text-parchant-300 shrink-0"
+                className="text-parchment-500 hover:text-parchment-300 shrink-0 transition-colors"
                 disabled={actionPending}
               >
-                关闭
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
               </button>
             </div>
           )}
@@ -529,16 +531,13 @@ function formatGMProviderStatus(status: unknown): string {
   const data = status as Record<string, unknown>;
   const ok = data.ok === true;
   const provider = data.provider === "llm" ? "大模型" : "备用模板";
-  const reason = typeof data.reason === "string" ? data.reason : "未知原因";
+  const reason = typeof data.reason === "string" ? data.reason : "";
   const model = typeof data.model === "string" ? data.model : "";
-  const baseUrl = typeof data.base_url === "string" ? data.base_url : "";
 
   if (ok) {
-    return `行动已结算，AI GM 已通过大模型生成本次叙事${model ? `（模型：${model}）` : ""}。`;
+    return `AI GM 已通过大模型完成叙事${model ? `（${model}）` : ""}。`;
   }
-
-  const configHint = [model ? `模型：${model}` : "", baseUrl ? `地址：${baseUrl}` : ""].filter(Boolean).join("，");
-  return `行动已结算，但 AI GM 没有成功调用大模型，已使用备用叙事。原因：${reason}${configHint ? `（${configHint}）` : ""}`;
+  return `AI GM 使用备用叙事${reason ? `，原因：${reason}` : ""}${model ? `（${model}）` : ""}。`;
 }
 
 function normalizeSuggestedActions(actions: unknown): SuggestedAction[] {
@@ -601,7 +600,6 @@ function sanitizeSuggestedActionText(text: unknown): string {
     .replace(/\b[a-z]+(?:_[a-z0-9]+){2,}\b/gi, "相关条目");
 }
 
-// Role selector sub-component
 function RoleSelector({
   roomId,
   onSelect,
@@ -618,7 +616,6 @@ function RoleSelector({
       .then((r) => r.json())
       .then((data) => {
         if (data.room) {
-          // Fetch story bible roles
           fetch(`/api/stories/generate`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -637,22 +634,40 @@ function RoleSelector({
   }, [roomId]);
 
   if (roles.length === 0) {
-    return <p className="text-parchant-500 text-sm col-span-2">加载角色中...</p>;
+    return (
+      <div className="col-span-2 flex items-center justify-center py-8">
+        <div className="w-6 h-6 rounded-full border-2 border-amber-600/20 border-t-amber-400 animate-spin" />
+        <span className="text-parchment-500 text-sm ml-3">加载角色中...</span>
+      </div>
+    );
   }
 
   return (
     <>
-      {roles.map((role) => (
-        <button
-          key={role.id}
-          onClick={() => onSelect(role.id)}
-          disabled={takenRoles.includes(role.id)}
-          className="p-3 rounded border border-midnight-600 hover:border-amber-500/50 text-left disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          <span className="text-parchant-200 font-medium block">{role.name}</span>
-          <span className="text-xs text-parchant-500">{role.public_identity}</span>
-        </button>
-      ))}
+      {roles.map((role) => {
+        const taken = takenRoles.includes(role.id);
+        return (
+          <button
+            key={role.id}
+            onClick={() => onSelect(role.id)}
+            disabled={taken}
+            className={`p-4 rounded-xl border text-left transition-all duration-300 ${
+              taken
+                ? "border-midnight-700/30 bg-midnight-800/30 opacity-40 cursor-not-allowed"
+                : "border-midnight-600/50 bg-midnight-800/40 hover:border-amber-600/50 hover:bg-midnight-800/60 hover:shadow-lg hover:shadow-amber-500/5"
+            }`}
+          >
+            <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-700/20 flex items-center justify-center mb-3">
+              <span className="text-amber-400 font-fantasy text-sm">{role.name.charAt(0)}</span>
+            </div>
+            <span className="text-parchment-200 font-medium block mb-1">{role.name}</span>
+            <span className="text-xs text-parchment-500">{role.public_identity}</span>
+            {taken && (
+              <span className="block text-xs text-amber-600 mt-2">已被选择</span>
+            )}
+          </button>
+        );
+      })}
     </>
   );
 }

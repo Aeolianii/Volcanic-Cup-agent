@@ -36,20 +36,12 @@ function formatEvidence(item: string): string {
 function formatId(value: string): string {
   const id = value.trim().replace(/\.$/, "");
   const labels: Record<string, string> = {
-    current_location: "当前位置",
-    connected_location: "相关地点",
-    current_event: "当前事件",
-    all_players: "所有玩家",
-    temple: "圣殿",
-    cathedral_basement: "教堂地下室",
-    underground_altar: "地下祭坛",
-    throne_room: "王座大厅",
-    royal_library: "皇家图书馆",
-    city_streets: "王城街道",
-    tavern: "酒馆",
-    npc_archmage: "大法师",
-    npc_old_king: "老国王",
-    npc_bishop: "主教",
+    current_location: "当前位置", connected_location: "相关地点",
+    current_event: "当前事件", all_players: "所有玩家",
+    temple: "圣殿", cathedral_basement: "教堂地下室",
+    underground_altar: "地下祭坛", throne_room: "王座大厅",
+    royal_library: "皇家图书馆", city_streets: "王城街道", tavern: "酒馆",
+    npc_archmage: "大法师", npc_old_king: "老国王", npc_bishop: "主教",
     ancient_runes_discovered: "古老符文线索",
   };
   return labels[id] || id.replace(/^npc_/, "").replace(/^role_/, "").replace(/_/g, " ");
@@ -57,16 +49,9 @@ function formatId(value: string): string {
 
 function actionLabel(actionType: string): string {
   const labels: Record<string, string> = {
-    investigate: "调查",
-    search: "搜索",
-    track: "追踪",
-    eavesdrop: "偷听",
-    interrogate: "盘问",
-    decode: "解读",
-    talk: "交谈",
-    persuade: "说服",
-    threaten: "威胁",
-    deceive: "欺骗",
+    investigate: "调查", search: "搜索", track: "追踪", eavesdrop: "偷听",
+    interrogate: "盘问", decode: "解读", talk: "交谈", persuade: "说服",
+    threaten: "威胁", deceive: "欺骗",
   };
   return labels[actionType] || actionType.replace(/_/g, " ");
 }
@@ -85,24 +70,24 @@ export function EvidencePanel({ evidence, knownFacts = [] }: EvidencePanelProps)
     return (
       <div className="panel">
         <h3 className="font-fantasy text-amber-400 text-sm mb-2">已知线索</h3>
-        <p className="text-parchment-500 text-sm">尚未发现线索</p>
+        <p className="text-parchment-600 text-sm">尚未发现线索</p>
       </div>
     );
   }
 
   return (
     <div className="panel">
-      <h3 className="font-fantasy text-amber-400 text-sm mb-2">
+      <h3 className="font-fantasy text-amber-400 text-sm mb-3">
         已知线索 ({allItems.length})
       </h3>
       <div className="space-y-1.5">
         {allItems.map((item, i) => (
           <div
             key={`${item}_${i}`}
-            className="flex items-start gap-2 p-1.5 rounded bg-midnight-700/30 border border-midnight-600/50"
+            className="flex items-start gap-2.5 p-2.5 rounded-lg glass border-midnight-600/30"
           >
-            <span className="text-amber-500 text-xs mt-0.5">•</span>
-            <span className="text-xs text-parchment-300">{item}</span>
+            <span className="text-amber-600 text-xs mt-0.5 shrink-0">&#x2022;</span>
+            <span className="text-xs text-parchment-400 leading-relaxed">{item}</span>
           </div>
         ))}
       </div>
