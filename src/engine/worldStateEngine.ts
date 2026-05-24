@@ -65,6 +65,7 @@ export function createWorldState(
       character.id,
       {
         character_id: character.id,
+        role_id: "type" in character && character.type === "player_role" ? character.id : undefined,
         status: "alive" as const,
         ghost_mode: false,
       },
@@ -125,6 +126,10 @@ export function createWorldState(
       player_advantage_scores: [],
       last_balance_turn: 0,
       recent_events: [],
+    },
+    history: {
+      actions: [],
+      world_events: [],
     },
   };
 }
@@ -453,6 +458,10 @@ export function applyUpdates(state: WorldState, updates: StateUpdate[]): WorldSt
           if (newLocation && !newLocation.present_characters.includes(update.target)) {
             newLocation.present_characters.push(update.target);
           }
+          const pk = next.knowledge_state.player_knowledge[update.target];
+          if (pk && !pk.known_locations.includes(update.value)) {
+            pk.known_locations.push(update.value);
+          }
         }
         break;
       }
@@ -567,7 +576,9 @@ export function applyUpdates(state: WorldState, updates: StateUpdate[]): WorldSt
             status === "defeated" ||
             status === "setback"
           ) {
+            const current = next.character_states[update.target];
             next.character_states[update.target] = {
+              ...current,
               character_id: update.target,
               status,
               ghost_mode: status === "dead",

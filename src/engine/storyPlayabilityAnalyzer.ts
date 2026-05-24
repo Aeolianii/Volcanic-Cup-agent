@@ -41,12 +41,13 @@ export async function analyzeStoryPlayability(seed: StorySeed): Promise<Playabil
   const llm = await analyzeWithLLM(seed, local);
   const llmScore = Number.isFinite(llm?.playable_score) ? Number(llm?.playable_score) : local.playable_score;
   const score = Math.round(local.playable_score * 0.55 + llmScore * 0.45);
+  const llmPlayable = Boolean(llm && llmScore >= 60);
 
   return {
     local,
     llm,
     merged: {
-      playable: score >= 40 && local.playable,
+      playable: score >= 40 && (local.playable || llmPlayable),
       playable_score: Math.max(0, Math.min(100, score)),
       missing_elements: unique([
         ...local.missing_elements,
@@ -66,24 +67,32 @@ export function applyPlayabilityToBible(
   report: PlayabilityReport
 ): StoryBible {
   const runtime = bible.runtime_modules;
-  if (!runtime || !report.llm) return bible;
+  if (!runtime) return bible;
+  if (!report.llm) {
+    return {
+      ...bible,
+      runtime_modules: normalizeRuntimeModules(runtime),
+    };
+  }
+
+  const mergedRuntime: StoryRuntimeModules = {
+    ...runtime,
+    genre_profile: report.llm.genre_profile || runtime.genre_profile,
+    tone_tags: unique([...runtime.tone_tags, ...(report.llm.tone_tags || [])]),
+    enabled: {
+      ...runtime.enabled,
+      ...(report.llm.recommended_modules || {}),
+    },
+    consequence_mode: report.llm.consequence_mode || runtime.consequence_mode,
+    disabled_action_types: unique([
+      ...runtime.disabled_action_types,
+      ...(report.llm.disabled_action_types || []),
+    ]),
+  };
 
   return {
     ...bible,
-    runtime_modules: {
-      ...runtime,
-      genre_profile: report.llm.genre_profile || runtime.genre_profile,
-      tone_tags: unique([...runtime.tone_tags, ...(report.llm.tone_tags || [])]),
-      enabled: {
-        ...runtime.enabled,
-        ...(report.llm.recommended_modules || {}),
-      },
-      consequence_mode: report.llm.consequence_mode || runtime.consequence_mode,
-      disabled_action_types: unique([
-        ...runtime.disabled_action_types,
-        ...(report.llm.disabled_action_types || []),
-      ]),
-    },
+    runtime_modules: normalizeRuntimeModules(mergedRuntime),
   };
 }
 
@@ -109,6 +118,7 @@ async function analyzeWithLLM(
         stream: false,
         temperature: 0.35,
         response_format: { type: "json_object" },
+        ...getProviderOptions(baseUrl),
       }),
     });
     if (!response.ok) return null;
@@ -119,6 +129,44 @@ async function analyzeWithLLM(
   } catch {
     return null;
   }
+}
+
+function normalizeRuntimeModules(runtime: StoryRuntimeModules): StoryRuntimeModules {
+  const enabled = { ...runtime.enabled };
+  let consequenceMode = runtime.consequence_mode;
+  let disabledActionTypes = [...runtime.disabled_action_types];
+
+  if (consequenceMode === "lethal" && !enabled.character_death) {
+    consequenceMode = fallbackNonLethalConsequence(runtime.genre_profile);
+  }
+
+  if (!enabled.character_death) {
+    enabled.ghost_mode = false;
+    disabledActionTypes = unique([
+      ...disabledActionTypes,
+      "assassinate",
+      "execute",
+      "sacrifice",
+      "ambush",
+      "duel",
+    ]);
+  } else {
+    enabled.ghost_mode = true;
+  }
+
+  return {
+    ...runtime,
+    enabled,
+    consequence_mode: consequenceMode,
+    disabled_action_types: disabledActionTypes,
+  };
+}
+
+function fallbackNonLethalConsequence(profile: StoryGenreProfile): StoryConsequenceMode {
+  if (profile === "campus_romance" || profile === "romance") return "romance_failure";
+  if (profile === "comedy") return "comic_setback";
+  if (profile === "mystery" || profile === "horror") return "investigation_failure";
+  return "social_setback";
 }
 
 function buildPrompt(seed: StorySeed, local: StoryAnalysis): ChatMessage[] {
@@ -235,6 +283,13 @@ function getConfig() {
       process.env.OPENAI_COMPAT_MODEL ||
       "deepseek-v4-pro",
   };
+}
+
+function getProviderOptions(baseUrl: string): Record<string, unknown> {
+  const disablesDeepSeekThinking =
+    /deepseek/i.test(baseUrl) && process.env.DEEPSEEK_THINKING !== "enabled";
+
+  return disablesDeepSeekThinking ? { thinking: { type: "disabled" } } : {};
 }
 
 function arrayOfStrings(value: unknown): string[] {

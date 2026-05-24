@@ -22,6 +22,7 @@ export interface WorldState {
   faction_states: Record<string, FactionRuntimeState>;
   communication_state: CommunicationState;
   balance_state: BalanceState;
+  history: WorldHistory;
 }
 
 export interface EventState {
@@ -82,6 +83,7 @@ export type CharacterLifeStatus = "alive" | "dead" | "missing" | "imprisoned" | 
 
 export interface CharacterRuntimeState {
   character_id: string;
+  role_id?: string;
   status: CharacterLifeStatus;
   ghost_mode: boolean;
   death_source?: string;
@@ -135,4 +137,37 @@ export interface BalanceState {
   player_advantage_scores: PlayerAdvantageScore[];
   last_balance_turn: number;
   recent_events: string[];
+}
+
+export interface WorldHistory {
+  actions: HistoricalAction[];
+  world_events: HistoricalWorldEvent[];
+}
+
+export interface HistoricalAction {
+  id: string;
+  turn: number;
+  actor_id: string;
+  actor_type: "human_player" | "ai_player_role" | "npc";
+  actor_name: string;
+  role_id?: string | null;
+  role_name?: string;
+  action_type: string;
+  target: string;
+  target_name: string;
+  method: string;
+  intent: string;
+  risk_level: "low" | "medium" | "high";
+  success: boolean;
+  public_result: string;
+  raw_input?: string;
+}
+
+export interface HistoricalWorldEvent {
+  id: string;
+  turn: number;
+  event_id: string;
+  title: string;
+  description: string;
+  trigger_reason: string;
 }

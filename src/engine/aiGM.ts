@@ -27,29 +27,59 @@ export async function generateGMNarrative(
   }
 ): Promise<GMNarrativeOutput> {
   const context = buildGMContext(bible, state, actionContext);
+  const timeoutMs = getNarrativeTimeoutMs(bible, Boolean(context.last_action));
+  let templateFallbackReason = "AI GM returned an unusable narrative payload.";
 
   try {
     const output = await withTimeout(
       aiProvider.generateNarrative(context),
-      getNarrativeTimeoutMs(bible, Boolean(context.last_action))
+      timeoutMs
     );
     if (isUsableNarrative(output)) {
+      if (output.provider_status?.ok === false && !allowsTemplateFallback(bible)) {
+        return sanitizeNarrativeOutput(settlementNarrative(
+          context.last_action,
+          state,
+          bible,
+          output.provider_status.reason || "AI GM provider returned fallback output."
+        ));
+      }
+
+      const normalizedActions = normalizeSuggestedActions(output.suggested_actions);
       return sanitizeNarrativeOutput({
         ...output,
-        suggested_actions: refreshSuggestedActions(output.suggested_actions, state, bible, context.last_action),
+        suggested_actions: refreshSuggestedActions(normalizedActions, state, bible, context.last_action),
       });
     }
-  } catch {
+  } catch (error) {
+    templateFallbackReason = `AI GM call failed or timed out after ${timeoutMs}ms: ${String(error)}`;
     if (!allowsTemplateFallback(bible)) {
-      return sanitizeNarrativeOutput(failedNarrative(context.last_action, state, bible));
+      return sanitizeNarrativeOutput(settlementNarrative(
+        context.last_action,
+        state,
+        bible,
+        templateFallbackReason
+      ));
     }
   }
 
   if (!allowsTemplateFallback(bible)) {
-    return sanitizeNarrativeOutput(failedNarrative(context.last_action, state, bible));
+    return sanitizeNarrativeOutput(settlementNarrative(
+      context.last_action,
+      state,
+      bible,
+      "AI GM returned an unusable narrative payload."
+    ));
   }
 
-  return sanitizeNarrativeOutput(templateNarrative(bible, state, phase, context.last_action));
+  return sanitizeNarrativeOutput({
+    ...templateNarrative(bible, state, phase, context.last_action),
+    provider_status: {
+      provider: "fallback",
+      ok: false,
+      reason: templateFallbackReason,
+    },
+  });
 }
 
 function allowsTemplateFallback(bible: StoryBible): boolean {
@@ -57,47 +87,148 @@ function allowsTemplateFallback(bible: StoryBible): boolean {
 }
 
 function getNarrativeTimeoutMs(bible: StoryBible, hasAction: boolean): number {
-  if (!hasAction) return 3000;
-  return allowsTemplateFallback(bible) ? 4500 : 16000;
+  if (!hasAction) return 10000;
+  return allowsTemplateFallback(bible) ? 8000 : 30000;
 }
 
-function failedNarrative(
+function settlementNarrative(
   lastAction: GMActionContext | undefined,
   state: WorldState,
-  bible: StoryBible
+  bible: StoryBible,
+  reason?: string
 ): GMNarrativeOutput {
+  const visibleMetrics = state.metrics
+    .filter((metric) => isPlayerVisibleMetric(metric.metric_id, bible))
+    .map((metric) => {
+      const label = bible.metrics.find((item) => item.id === metric.metric_id)?.label || metric.metric_id;
+      return `${label}：${metric.value}`;
+    });
+  const activeEvents = state.events
+    .filter((event) => event.triggered)
+    .map((event) => bible.events.find((item) => item.id === event.event_id)?.title || event.event_id)
+    .slice(-3);
+  const npcLines = (lastAction?.npc_results || [])
+    .filter((item) => item.public_result)
+    .slice(0, 2)
+    .map((item) => `AI 代管角色动向：${item.public_result}`);
+
   return {
     narration: [
       `第 ${state.chapter} 章 · 第 ${state.turn} 回合`,
-      lastAction ? `行动已由规则引擎完成结算：${lastAction.public_result}` : `《${bible.title}》的当前叙事请求已经提交。`,
-      "AI GM 没有成功返回本次叙事结果。为避免用模板剧情替代导入故事的真实生成，系统没有生成替代剧情。",
-      "请重新提交行动，或检查 AI API 配置、模型响应时间和网络状态。",
-    ].join("\n\n"),
-    suggested_events: lastAction?.triggered_events.map((event) => event.id) || [],
-    revealed_information: [],
+      lastAction
+        ? `${lastAction.actor_name}完成了“${lastAction.action_label}”：${lastAction.public_result}`
+        : `《${bible.title}》的当前回合已经完成结算。`,
+      lastAction?.success === false ? "这次行动没有完全达成预期，但它仍然改变了现场的警惕程度和后续行动空间。" : "这次行动已经写入当前局势，后续叙事会基于这个真实结算继续推进。",
+      lastAction?.state_updates?.length
+        ? `规则结算记录：${describeStateUpdates(lastAction.state_updates, bible).join("；") || "本次行动产生了隐性影响"}。`
+        : "规则结算记录：本回合没有显著公开数值变化。",
+      activeEvents.length ? `当前公开事件：${activeEvents.join("、")}。` : "当前尚未触发新的公开事件，但局势正在累积变化。",
+      visibleMetrics.length ? `公开局势：${visibleMetrics.join("，")}。` : "公开局势暂未显示新的数值变化。",
+      npcLines.join("\n"),
+      "AI GM 本回合没有成功生成文学化叙事，因此系统改为展示基于真实规则结算的回合摘要；这不是模板剧情，也不会替代故事真实走向。",
+    ].filter(Boolean).join("\n\n"),
+    suggested_events: lastAction?.triggered_events.map((event) => event.title) || [],
+    revealed_information: lastAction ? buildRevealedInformation(lastAction) : [],
     suggested_actions: buildGenericFallbackActions(state, bible, lastAction),
-    mood: "tense",
+    mood: lastAction?.success ? "investigative" : "tense",
+    provider_status: {
+      provider: "fallback",
+      ok: false,
+      reason,
+    },
   };
+}
+
+function describeStateUpdates(updates: GMActionContext["state_updates"], bible: StoryBible): string[] {
+  return updates
+    .map((update) => {
+      if (update.type === "metric_change" && update.metric) {
+        const label = bible.metrics.find((metric) => metric.id === update.metric)?.label || update.metric;
+        const delta = Number(update.delta || 0);
+        if (!delta) return `${label}发生变化`;
+        return `${label}${delta > 0 ? "上升" : "下降"}${Math.abs(delta)}`;
+      }
+      if (update.type === "add_known_fact" || update.type === "add_evidence") return "获得了新的线索或事实";
+      if (update.type === "trigger_event") {
+        const title = bible.events.find((event) => event.id === update.target)?.title || update.target;
+        return `触发事件：${title}`;
+      }
+      if (update.type === "change_location") return "位置发生变化";
+      if (update.type === "set_flag") return "关键状态已记录";
+      return "局势发生隐性变化";
+    })
+    .filter(Boolean)
+    .slice(0, 5);
 }
 
 function sanitizeNarrativeOutput(output: GMNarrativeOutput): GMNarrativeOutput {
   return {
     ...output,
     narration: sanitizeDisplayText(output.narration),
-    revealed_information: output.revealed_information.map((item) => ({
-      ...item,
-      title: sanitizeDisplayText(item.title),
-      content: sanitizeDisplayText(item.content),
-    })),
-    suggested_actions: output.suggested_actions.map((action) => ({
-      ...action,
-      label: sanitizeDisplayText(action.label),
-      context: sanitizeDisplayText(action.context),
-    })),
+    revealed_information: sanitizeRevealedInformation(output.revealed_information),
+    suggested_events: sanitizeStringList(output.suggested_events),
+    suggested_actions: normalizeSuggestedActions(output.suggested_actions),
   };
 }
 
-function sanitizeDisplayText(text: string): string {
+function sanitizeRevealedInformation(
+  items: GMNarrativeOutput["revealed_information"]
+): GMNarrativeOutput["revealed_information"] {
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .map((item) => {
+      const raw: Record<string, unknown> = item && typeof item === "object"
+        ? item as unknown as Record<string, unknown>
+        : { content: item };
+      const type = ["fact", "clue", "event", "location"].includes(String(raw.type))
+        ? raw.type as GMNarrativeOutput["revealed_information"][number]["type"]
+        : "fact";
+
+      return {
+        type,
+        title: sanitizeDisplayText(raw.title || "局势信息"),
+        content: sanitizeDisplayText(raw.content || raw.title || ""),
+        visible_to: Array.isArray(raw.visible_to) ? raw.visible_to.map((value: unknown) => String(value || "all")) : ["all"],
+      };
+    })
+    .filter((item) => item.content);
+}
+
+function normalizeSuggestedActions(actions: unknown): GMNarrativeOutput["suggested_actions"] {
+  if (!Array.isArray(actions)) return [];
+
+  return actions
+    .map((action) => {
+      const raw: Record<string, unknown> = action && typeof action === "object"
+        ? action as Record<string, unknown>
+        : { label: action };
+      const risk = String(raw.risk_level || "low");
+
+      return {
+        label: sanitizeDisplayText(raw.label || raw.intent || "继续调查当前线索"),
+        action_type: sanitizeActionField(raw.action_type, "investigate"),
+        target: sanitizeActionField(raw.target, "current_location"),
+        method: sanitizeActionField(raw.method, "focused_inquiry"),
+        intent: sanitizeActionField(raw.intent, "find_clues"),
+        risk_level: (risk === "medium" || risk === "high" ? risk : "low") as "low" | "medium" | "high",
+        context: sanitizeDisplayText(raw.context || "基于当前局势继续寻找可验证线索"),
+      };
+    })
+    .filter((action) => action.label);
+}
+
+function sanitizeStringList(items: unknown): string[] {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => sanitizeDisplayText(item)).filter(Boolean);
+}
+
+function sanitizeActionField(value: unknown, fallback: string): string {
+  const text = String(value || fallback).trim();
+  return text || fallback;
+}
+
+function sanitizeDisplayText(text: unknown): string {
   const replacements: Record<string, string> = {
     connected_location: "相关地点",
     "connected location": "相关地点",
@@ -128,7 +259,7 @@ function sanitizeDisplayText(text: string): string {
 
   return Object.entries(replacements).reduce(
     (value, [key, label]) => value.replace(new RegExp(`\\b${key}\\b`, "g"), label),
-    text
+    String(text || "")
   );
 }
 
@@ -398,7 +529,7 @@ function buildLastActionContext(
 }
 
 function isUsableNarrative(output: GMNarrativeOutput | null | undefined): output is GMNarrativeOutput {
-  return Boolean(output?.narration && Array.isArray(output.suggested_actions));
+  return Boolean(output?.narration);
 }
 
 function templateNarrative(
@@ -504,6 +635,7 @@ function buildActionNarration(
     });
   const implicitLines = lastAction.implicit_effects || [];
   const triggeredLines = lastAction.triggered_events.map((event) => `新的事件被推到台前：${event.title}。`);
+  const aiAgentLines = summarizeAIAgentActions(lastAction);
   const resultLine = lastAction.success
     ? buildSuccessfulActionResult(lastAction, bible)
     : `${lastAction.actor_name}的尝试没有达成预期，${lastAction.target_name}没有给出真正有用的回应。`;
@@ -514,9 +646,21 @@ function buildActionNarration(
     resultLine,
     metricLines.length > 0 ? `局势变化：${metricLines.join("，")}。` : "",
     implicitLines.length > 0 ? `暗流变化：${implicitLines.join("，")}` : "",
+    aiAgentLines.length > 0 ? aiAgentLines.join("\n") : "",
     triggeredLines.join("\n"),
     activeEvents.length > 0 ? `当前公开事件：${activeEvents.join("、")}。` : "",
   ].filter(Boolean).join("\n\n");
+}
+
+function summarizeAIAgentActions(lastAction: GMActionContext): string[] {
+  return (lastAction.npc_results || [])
+    .filter((item) => item.public_result)
+    .slice(0, 4)
+    .map((item) => {
+      if (item.visibility === "public") return `与此同时，${item.public_result}`;
+      return item.public_result || "";
+    })
+    .filter(Boolean);
 }
 
 function buildSuccessfulActionResult(lastAction: GMActionContext, bible: StoryBible): string {
@@ -651,6 +795,12 @@ function formatEntityName(id: string | undefined, bible: StoryBible, state: Worl
     holy_grail: "圣杯",
   };
   if (knownLabels[id]) return knownLabels[id];
+
+  const playerRoleId = state.character_states[id]?.role_id;
+  if (playerRoleId) {
+    const playerRole = bible.roles.find((item) => item.id === playerRoleId);
+    if (playerRole) return playerRole.name;
+  }
 
   const role = bible.roles.find((item) => item.id === id || item.name === id);
   if (role) return role.name;

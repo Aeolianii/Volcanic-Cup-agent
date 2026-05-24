@@ -1,5 +1,5 @@
 --- PAGE 1 ---
-AI Story Foundry
+AI Story Engine
 ാઋ഼Жᆭ၀
 ໸ğ
 అ୽
@@ -8,7 +8,7 @@ AI Story Foundry
 
 --- PAGE 2 ---
 ᅋေ
-AI Story FoundryႿ AIളӮ
+AI Story EngineႿ AIളӮ
 Story Bible đ ѩຶಡStory Bible෿UIaAI GM aAI NPC aWorld State
 अੀӱb
 1
@@ -87,10 +87,10 @@ Story Bible đ ѩຶಡStory Bible෿UIaAI GM aAI NPC aWorld State
 --- PAGE 5 ---
 1Чྐ༏
 1.1 ቔ௖଀ӫ
-AI Story F oundryčAIĎ
+AI Story EnginečAIĎ
 ѓีğྻ൙ႄౣ
 1.2ࢺࡥ
-AI Story Foundry֥AIູ໊ ”AIᇹखЧ೪༢๤”b
+AI Story Engine֥AIູ໊ ”AIᇹखЧ೪༢๤”b
 Ⴓ༤ଽಸđЇওğ
 •෿ Story Bible ളӮ೤aᆔႏa
 ק
@@ -129,8 +129,8 @@ b
 •ტ஡࿞࡬
 •჎ু჎ু࿊ᄴ
 1.5໊
-खЧ೪ႋႨཌྷбđAI Story Foundry ऎႵၛ༯Ⴊ൝ğ
-หྟ Ԯ๤खЧ೪ App AI Story F oundry
+खЧ೪ႋႨཌྷбđAI Story Engine ऎႵၛ༯Ⴊ൝ğ
+หྟ Ԯ๤खЧ೪ App AI Story Engine
 AI GM ᆦӻֆଆϰ ᇆିྻ൙ളӮ
 NPC ྛູЧ߃ܿ
 ൙ളӮଆϰ AIളӮ
@@ -143,7 +143,7 @@ NPC ྛູЧ߃ܿ
 --- PAGE 7 ---
 2ඍ
 2.1 ཛଢଢѓ
-AI Story Foundry۱AI Story Engineିğ
+AI Story Engine۱AI Story Engineିğ
 •ളӮ Story Bible
 •Ⴟ Story Bible෿ UIࡗٜ
 •ൌགྷ AI GMބAI NPC೤Ď
@@ -734,8 +734,8 @@ v1.0 2026-05-20࠹
 13 ᇁ྆
 ೶Ж AgentԷᄯ৯b
 ऎğNext.jsaReactaTailwind CSSaTypeScriptb
-ᆶğ https://github.com/example/ai-story-foundry
-ᆶğ http://ai-story-foundry.example.com
+ᆶğ https://github.com/example/ai-story-engine
+ᆶğ http://ai-story-engine.example.com
 Copyright © 2026ؒ
 ϱಃ෮ႵЌ਽၂్ಃ০
 26

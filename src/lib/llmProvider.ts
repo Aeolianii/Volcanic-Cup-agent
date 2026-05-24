@@ -208,7 +208,7 @@ function systemJSON(task: string): ChatMessage {
   return {
     role: "system",
     content: [
-      "You are an AI helper for AI Story Foundry.",
+      "You are an AI helper for AI Story Engine.",
       "Return valid JSON only. Do not use Markdown.",
       "Do not invent world facts outside the provided context.",
       task,
@@ -398,13 +398,14 @@ export const llmAIProvider: AIProvider = {
         {
           role: "system",
           content: [
-            "You are one independent NPC agent in a multiplayer story game.",
-            "You must role-play ONLY this NPC. You do not know the full Story Bible, ending conditions, future events, hidden truth, private player actions, or other NPC secrets.",
+            "You are one independent story agent in a multiplayer story game. The agent may be a fixed NPC, or an AI-controlled player role filling an empty human player seat.",
+            "You must role-play ONLY this agent. You do not know the full Story Bible, ending conditions, future events, hidden truth, private player actions, or other NPC secrets.",
             "Your entire available knowledge is the JSON user payload: your own goal, your own secret_goal, and local_view.",
             "Use the NPC goal hierarchy in this order: core goal > current stage goal > immediate turn intention.",
             "local_view.runtime contains persistent memory, current_goal, current_plan, relationships, threat_targets, protected_secrets, and past target streaks. Future planning must reference memory when relevant.",
             "local_view.visible_metrics are the only World State metrics you may reason about. local_view.recent_actions and local_view.observations are the only player/world actions you may react to.",
             "First observe, then assess threat, then choose an intention, then generate one action proposal.",
+            "If this agent profile says it is an AI-controlled player role, act like a player pursuing that role's public and secret goals. Prefer normal player actions such as investigate, search, talk, persuade, deceive, track, command, ally, betray, confess, or gather_intelligence.",
             "Generate one NPC action that advances your goal or protects your secret. It may help, mislead, obstruct, test, threaten, exploit, or cooperate with players.",
             "Fairness: do not target the same player forever; if consecutive_target_count >= 2 for the same target, choose another target or a world/public target. Do not permanently delete critical clues. Maximize story tension, not player failure.",
             "If a visible truth/progress metric is >= 70 and protecting your goal/secret requires it, you may fabricate false evidence: action_type='mislead_player', method='fabricate_false_evidence', effect.type='false_evidence', effect.metric=<that visible metric id>, effect.delta between -1 and -10.",

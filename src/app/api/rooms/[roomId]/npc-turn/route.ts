@@ -20,14 +20,24 @@ export async function POST(
       );
     }
 
-    const npcTurn = await runDueNPCTurns(worldState, bible, getAIProvider());
+    const npcTurn = await runDueNPCTurns(worldState, bible, getAIProvider(), getAIControlledRoleIds(room, bible));
     worldState = npcTurn.worldState;
 
     roomManager.updateWorldState(roomId, worldState);
 
     return NextResponse.json({
       success: true,
-      npc_results: npcTurn.npcResults,
+      npc_results: npcTurn.npcResults.map((item) => ({
+        npc_id: item.npc_id,
+        npc_name: item.npc_name,
+        actor_kind: item.actor_kind,
+        role_id: item.role_id,
+        skipped: item.skipped,
+        success: item.result?.success,
+        visibility: item.proposal?.visibility,
+        action_type: item.proposal?.visibility === "public" ? item.proposal?.action_type : undefined,
+        public_result: item.public_result,
+      })),
       world_state: worldState,
     });
   } catch (error) {
@@ -36,4 +46,14 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+function getAIControlledRoleIds(
+  room: { players: Array<{ role_id: string | null }> },
+  bible: { roles: Array<{ id: string }> }
+): string[] {
+  const humanRoleIds = new Set(room.players.map((player) => player.role_id).filter(Boolean));
+  return bible.roles
+    .map((role) => role.id)
+    .filter((roleId) => !humanRoleIds.has(roleId));
 }

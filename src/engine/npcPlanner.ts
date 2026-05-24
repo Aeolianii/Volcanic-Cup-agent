@@ -11,7 +11,8 @@ const MAX_CONSECUTIVE_TARGET = 2;
 export async function generateNPCActionProposal(
   npc: NPC,
   localView: NPCLocalView,
-  aiProvider: AIProvider
+  aiProvider: AIProvider,
+  options: { actorKind?: "fixed_npc" | "ai_player_role" } = {}
 ): Promise<ActionProposal> {
   try {
     const aiOutput = await aiProvider.generateNPCAction({
@@ -27,7 +28,7 @@ export async function generateNPCActionProposal(
       return normalizeProposal({
         npc_id: npc.id,
         intention: aiOutput.intention,
-        action_type: normalizeNPCActionType(aiOutput.action_type),
+        action_type: normalizeNPCActionType(aiOutput.action_type, options.actorKind),
         target: aiOutput.target,
         method: aiOutput.method,
         reasoning_visible: aiOutput.reasoning_visible,
@@ -35,12 +36,15 @@ export async function generateNPCActionProposal(
         visibility: aiOutput.visibility || "partial",
         requires_rule_check: true,
         effect: aiOutput.effect,
-      }, localView);
+      }, localView, options);
     }
   } catch {
     // Fall through to deterministic local behavior.
   }
 
+  if (options.actorKind === "ai_player_role") {
+    return playerRoleBehavioralPlanner(npc, localView);
+  }
   return behavioralPlanner(npc, localView);
 }
 
@@ -153,11 +157,61 @@ function behavioralPlanner(npc: NPC, localView: NPCLocalView): ActionProposal {
   };
 }
 
-function normalizeProposal(proposal: ActionProposal, localView: NPCLocalView): ActionProposal {
+function playerRoleBehavioralPlanner(npc: NPC, localView: NPCLocalView): ActionProposal {
+  const currentLocation = localView.known_players[0]?.location || "current_location";
+  const topThreat = localView.threat_assessment[0];
+  const targetPlayer = fairTarget(topThreat?.target_id || mostRecentKnownPlayer(localView), localView);
+
+  if (topThreat && topThreat.level >= 55 && targetPlayer) {
+    return {
+      npc_id: npc.id,
+      intention: `试探${targetPlayer}掌握了多少信息，并判断是否需要合作或误导`,
+      action_type: npc.behavior_style.deception >= npc.behavior_style.cooperation ? "deceive" : "persuade",
+      target: targetPlayer,
+      method: npc.behavior_style.deception >= npc.behavior_style.cooperation ? "selective_truth" : "careful_conversation",
+      reasoning_visible: `${npc.name}作为 AI 代管角色，只根据自己可见的信息和角色目标行动。`,
+      risk_level: "medium",
+      visibility: npc.behavior_style.deception >= npc.behavior_style.cooperation ? "secret" : "public",
+      requires_rule_check: true,
+    };
+  }
+
+  if (npc.behavior_style.caution >= 60 || npc.behavior_style.deception >= 60) {
+    return {
+      npc_id: npc.id,
+      intention: "调查当前局势中最可疑的地点，同时避免过早暴露自己的真实目标",
+      action_type: "investigate",
+      target: currentLocation,
+      method: "careful_search",
+      reasoning_visible: `${npc.name}优先推进自己的公开/秘密目标，而不是替固定 NPC 干预玩家。`,
+      risk_level: "low",
+      visibility: "partial",
+      requires_rule_check: true,
+    };
+  }
+
+  return {
+    npc_id: npc.id,
+    intention: "公开推动自己的角色目标，并寻找可以结盟的人",
+    action_type: npc.behavior_style.cooperation >= 60 ? "persuade" : "investigate",
+    target: targetPlayer || currentLocation,
+    method: npc.behavior_style.cooperation >= 60 ? "open_negotiation" : "direct_inquiry",
+    reasoning_visible: `${npc.name}作为缺席玩家的替代行动体，选择像玩家一样推动角色目标。`,
+    risk_level: "low",
+    visibility: npc.behavior_style.cooperation >= 60 ? "public" : "partial",
+    requires_rule_check: true,
+  };
+}
+
+function normalizeProposal(
+  proposal: ActionProposal,
+  localView: NPCLocalView,
+  options: { actorKind?: "fixed_npc" | "ai_player_role" } = {}
+): ActionProposal {
   const effect = normalizeEffect(proposal.effect, localView);
   return {
     ...proposal,
-    action_type: normalizeNPCActionType(proposal.action_type),
+    action_type: normalizeNPCActionType(proposal.action_type, options.actorKind),
     target: fairTarget(proposal.target, localView) || proposal.target || mostRecentKnownPlayer(localView) || "public_situation",
     method: proposal.method || "indirect_action",
     reasoning_visible: proposal.reasoning_visible || "NPC acts from limited local knowledge.",
@@ -228,10 +282,23 @@ const NPC_ACTION_TYPES: NPCActionType[] = [
   "build",
 ];
 
-function normalizeNPCActionType(value: string): NPCActionType {
+function normalizeNPCActionType(value: string, actorKind?: "fixed_npc" | "ai_player_role"): NPCActionType {
+  if (actorKind === "ai_player_role") {
+    const playerRoleMap: Record<string, NPCActionType> = {
+      obstruct_investigation: "investigate",
+      mislead_player: "deceive",
+      hide_evidence: "investigate",
+      frame_player: "deceive",
+      manipulate_metric: "command",
+      influence_npc: "persuade",
+      protect_secret: "investigate",
+      accelerate_plan: "investigate",
+    };
+    if (playerRoleMap[value]) return playerRoleMap[value];
+  }
   return NPC_ACTION_TYPES.includes(value as NPCActionType)
     ? (value as NPCActionType)
-    : "mislead_player";
+    : actorKind === "ai_player_role" ? "investigate" : "mislead_player";
 }
 
 function findThreateningInvestigation(npc: NPC, localView: NPCLocalView) {

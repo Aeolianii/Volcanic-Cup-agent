@@ -833,6 +833,12 @@ function formatEntityName(id: string | undefined, bible: StoryBible, state?: Wor
   if (id === "all" || id === "all_players") return "all players";
   if (id === "self_goal") return "personal goal";
 
+  const playerRoleId = state?.character_states[id]?.role_id;
+  if (playerRoleId) {
+    const playerRole = bible.roles.find((item) => item.id === playerRoleId);
+    if (playerRole) return playerRole.name;
+  }
+
   const role = bible.roles.find((item) => item.id === id || item.name === id);
   if (role) return role.name;
   const npc = bible.npcs.find((item) => item.id === id || item.name === id);

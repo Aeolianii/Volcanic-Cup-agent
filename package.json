@@ -1,6 +1,6 @@
 {
-  "name": "ai-story-foundry",
-  "version": "1.6.0",
+  "name": "ai-story-engine",
+  "version": "1.8.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

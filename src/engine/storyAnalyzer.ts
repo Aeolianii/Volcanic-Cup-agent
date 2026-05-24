@@ -81,7 +81,14 @@ export function analyzeStory(seed: StorySeed): StoryAnalysis {
 }
 
 function extractSeedFeatures(seed: StorySeed): StoryFeaturesAnalysis {
-  const text = `${seed.genre} ${seed.opening} ${seed.ending} ${seed.characters} ${seed.world_setting}`.toLowerCase();
+  const text = [
+    seed.genre,
+    seed.opening,
+    seed.ending,
+    seed.characters,
+    seed.character_details,
+    seed.world_setting,
+  ].filter(Boolean).join(" ").toLowerCase();
 
   return {
     has_conflict: /冲突|战争|对抗|敌对|争夺|权谋|阴谋|背叛|误会|竞争|危机|任务|目标|选择|矛盾|压力/.test(text),

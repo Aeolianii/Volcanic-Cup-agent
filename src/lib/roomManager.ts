@@ -116,6 +116,7 @@ class RoomManager {
 
     // Create world state
     const ws = createWorldState(bible.id, roomId, bible);
+    const humanRoleIds = new Set(room.players.map((player) => player.role_id).filter(Boolean));
     for (const player of room.players) {
       if (!player.role) continue;
       ws.knowledge_state.player_knowledge[player.player_id] = {
@@ -130,10 +131,27 @@ class RoomManager {
       };
       ws.character_states[player.player_id] = {
         character_id: player.player_id,
+        role_id: player.role.id,
         status: "alive",
         ghost_mode: false,
       };
+      placeCharacterAt(ws, player.player_id, player.role.starting_location);
     }
+    for (const role of bible.roles) {
+      if (humanRoleIds.has(role.id)) continue;
+      ws.character_states[role.id] = {
+        ...ws.character_states[role.id],
+        character_id: role.id,
+        role_id: role.id,
+        status: ws.character_states[role.id]?.status || "alive",
+        ghost_mode: ws.character_states[role.id]?.ghost_mode || false,
+      };
+      placeCharacterAt(ws, role.id, role.starting_location);
+    }
+    bible.npcs.forEach((npc, index) => {
+      const location = ws.locations[index % Math.max(1, ws.locations.length)];
+      if (location) placeCharacterAt(ws, npc.id, location.id);
+    });
     this.worldStates.set(room.world_state_id, ws);
 
     room.status = "running";
@@ -172,6 +190,19 @@ class RoomManager {
 
   getPlayer(roomId: string, playerId: string): Player | undefined {
     return this.rooms.get(roomId)?.players.find((p) => p.player_id === playerId);
+  }
+}
+
+function placeCharacterAt(worldState: WorldState, characterId: string, locationId: string): void {
+  for (const location of worldState.locations) {
+    location.present_characters = location.present_characters.filter((id) => id !== characterId);
+  }
+
+  const targetLocation =
+    worldState.locations.find((location) => location.id === locationId) ||
+    worldState.locations[0];
+  if (targetLocation && !targetLocation.present_characters.includes(characterId)) {
+    targetLocation.present_characters.push(characterId);
   }
 }
 

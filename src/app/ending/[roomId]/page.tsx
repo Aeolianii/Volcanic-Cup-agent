@@ -29,6 +29,50 @@ interface EndingData {
     notes: string[];
   }[];
   ending_narrative: string;
+  ending_recap?: {
+    truth: {
+      title: string;
+      content: string;
+      source: string;
+    }[];
+    chronicle: {
+      turn: number;
+      title: string;
+      description: string;
+      trigger_reason: string;
+    }[];
+    player_actions: {
+      id: string;
+      turn: number;
+      actor_id: string;
+      actor_display_name: string;
+      actor_type: "human_player" | "ai_player_role" | "npc";
+      action_type: string;
+      action_label: string;
+      target_display_name: string;
+      method: string;
+      intent: string;
+      risk_level: "low" | "medium" | "high";
+      success: boolean;
+      public_result: string;
+      raw_input?: string;
+    }[];
+    gm_reviews: {
+      player_id: string;
+      display_name: string;
+      kind: "human_player" | "ai_player_role";
+      score: number;
+      highlights: string[];
+      gm_comment: string;
+    }[];
+    mvp: {
+      player_id: string;
+      display_name: string;
+      kind: "human_player" | "ai_player_role";
+      score: number;
+      gm_comment: string;
+    } | null;
+  };
 }
 
 export default function EndingPage() {
@@ -85,6 +129,102 @@ export default function EndingPage() {
           <div className="prose prose-invert max-w-none text-parchant-200 leading-relaxed whitespace-pre-wrap">
             {sanitizeSettlementText(data.ending_narrative)}
           </div>
+        </div>
+      )}
+
+      {data?.ending_recap && (
+        <div className="space-y-8 mb-8">
+          {data.ending_recap.mvp && (
+            <div className="panel border-amber-500/60 bg-amber-950/20">
+              <p className="text-xs uppercase tracking-wider text-amber-500 mb-2">MVP</p>
+              <h3 className="font-fantasy text-2xl text-amber-300 mb-2">
+                {sanitizeSettlementText(data.ending_recap.mvp.display_name)}
+              </h3>
+              <p className="text-sm text-parchant-300">
+                贡献分：{data.ending_recap.mvp.score}
+              </p>
+              <p className="text-parchant-200 mt-3 leading-relaxed">
+                {sanitizeSettlementText(data.ending_recap.mvp.gm_comment)}
+              </p>
+            </div>
+          )}
+
+          {data.ending_recap.truth.length > 0 && (
+            <div className="panel">
+              <h3 className="font-fantasy text-amber-400 mb-4">事件真相公开</h3>
+              <div className="space-y-3">
+                {data.ending_recap.truth.map((item, index) => (
+                  <div key={`${item.title}_${index}`} className="border-l-2 border-amber-500/50 pl-3">
+                    <p className="text-parchant-100 font-medium">{sanitizeSettlementText(item.title)}</p>
+                    <p className="text-sm text-parchant-400 leading-relaxed whitespace-pre-wrap">
+                      {sanitizeSettlementText(item.content)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {data.ending_recap.chronicle.length > 0 && (
+            <div className="panel">
+              <h3 className="font-fantasy text-amber-400 mb-4">事件编年史</h3>
+              <div className="space-y-3">
+                {data.ending_recap.chronicle.map((item, index) => (
+                  <div key={`${item.title}_${index}`} className="p-3 rounded border border-midnight-600 bg-midnight-700/30">
+                    <div className="flex items-center gap-3 mb-1">
+                      <span className="text-xs text-amber-400">第 {item.turn} 回合</span>
+                      <span className="text-parchant-100 font-medium">{sanitizeSettlementText(item.title)}</span>
+                    </div>
+                    <p className="text-sm text-parchant-400 leading-relaxed">{sanitizeSettlementText(item.description)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {data.ending_recap.player_actions.length > 0 && (
+            <div className="panel">
+              <h3 className="font-fantasy text-amber-400 mb-4">所有玩家操作公开</h3>
+              <div className="space-y-3">
+                {data.ending_recap.player_actions.map((action) => (
+                  <div key={action.id} className="p-3 rounded border border-midnight-600 bg-midnight-700/30">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                      <span className="text-parchant-100 font-medium">
+                        第 {action.turn} 回合 · {sanitizeSettlementText(action.actor_display_name)}
+                      </span>
+                      <span className={action.success ? "text-xs text-emerald-300" : "text-xs text-rose-300"}>
+                        {action.success ? "成功" : "失败"} · {sanitizeSettlementText(action.action_label)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-parchant-400">
+                      目标：{sanitizeSettlementText(action.target_display_name || "未知")}；意图：{sanitizeSettlementText(action.intent)}
+                    </p>
+                    <p className="text-sm text-parchant-300 mt-1">{sanitizeSettlementText(action.public_result)}</p>
+                    {action.raw_input && (
+                      <p className="text-xs text-parchant-500 mt-1">原始输入：{sanitizeSettlementText(action.raw_input)}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {data.ending_recap.gm_reviews.length > 0 && (
+            <div className="panel">
+              <h3 className="font-fantasy text-amber-400 mb-4">GM 玩家点评</h3>
+              <div className="space-y-3">
+                {data.ending_recap.gm_reviews.map((review) => (
+                  <div key={review.player_id} className="p-3 rounded border border-midnight-600 bg-midnight-700/30">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <span className="text-parchant-100 font-medium">{sanitizeSettlementText(review.display_name)}</span>
+                      <span className="text-xs text-amber-400">贡献分 {review.score}</span>
+                    </div>
+                    <p className="text-sm text-parchant-300 leading-relaxed">{sanitizeSettlementText(review.gm_comment)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
