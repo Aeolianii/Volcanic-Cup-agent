@@ -1,0 +1,741 @@
+--- PAGE 1 ---
+AI Story Foundry
+ാઋ഼Жᆭ၀
+໸ğ
+అ୽
+೶Ж Agent Էྍն೗
+2026 ୍ 5 ᄅ
+
+--- PAGE 2 ---
+ᅋေ
+AI Story FoundryႿ AIളӮ
+Story Bible đ ѩຶಡStory Bible෿UIaAI GM aAI NPC aWorld State
+अੀӱb
+1
+
+--- PAGE 3 ---
+ଢ੣
+1Чྐ༏ 4
+1.1 ቔ௖଀ӫ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4
+1.2ࢺࡥ.......................................... 4
+1.3ׄ..................................... 4
+1.3.1ྏԷྍ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4
+1.3.2ׄ...................................... 5
+1.4ࣟ.......................................... 5
+1.5໊ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5
+2ඍ 6
+2.1 ཛଢଢѓ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+2.2ྏჰᄵ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+2.3ඌᅜ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+3ܒࢲ7
+3.1 StorySeed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+3.2 StoryBible . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+3.3 Role . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+3.4 NPC . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+3.5 Metric . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+3.6 WorldState . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+3.7 StructuredAction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9
+4ܒࡏ10
+4.1 ଆॶሹফ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+4.2ࢳ........................................ 10
+4.2.1 Story Input Module . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+4.2.2 Story Bible Generator . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+4.2.3 Rule Engine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+4.2.4 World State Engine . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+4.2.5 AI GM Module . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+4.2.6 NPC Knowledge Filter . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12
+4.2.7 Ending Judge . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+5 API࠹14
+5.1 API ਫ਼Ⴎሹফ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+5.2ၬ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+5.2.1 POST /api/stories/generate . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+5.2.2 POST /api/rooms . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+5.2.3 POST /api/rooms/:roomId/actions . . . . . . . . . . . . . . . . . . . . . . . . 15
+2
+
+--- PAGE 4 ---
+6်૫ 16
+6.1ܒࢲ.......................................... 16
+6.2ࡱ....................................... 16
+7 Ⴓ༤ੀӱ 17
+7.1 Ⴓ༤ᄎྛੀӱ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+7.2ো . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+7.2.1׮Social Actions) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+7.2.2׮Investigation Actions) . . . . . . . . . . . . . . . . . . . . . . . . . 17
+7.2.3׮Political Actions) . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+7.2.4׮Combat Actions) . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+7.2.5׮Resource Actions) . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+8 Demo൙ğാઋ഼Жᆭ၀ 19
+8.1 Demoඍ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+8.2ࣟ.......................................... 19
+8.3ࢺࡥ........................................ 19
+8.4 NPCࢺࡥ....................................... 19
+8.5৽ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+8.6ᆦ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+9 ҆ඇაᄎྛ 21
+9.1ေ౰ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+9.2 νልაᄎྛ . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+9.3 AI ஥ᇂčॖ࿊Ď . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+10ܒࢲ22
+11 ໃটᅚຬ 24
+11.1߃ܿ.......................................... 24
+11.2ࣟ.......................................... 24
+12 ϱЧ৥ൎ 25
+13 ᇁ྆ 26
+3
+
+--- PAGE 5 ---
+1Чྐ༏
+1.1 ቔ௖଀ӫ
+AI Story F oundryčAIĎ
+ѓีğྻ൙ႄౣ
+1.2ࢺࡥ
+AI Story Foundry֥AIູ໊ ”AIᇹखЧ೪༢๤”b
+Ⴓ༤ଽಸđЇওğ
+•෿ Story Bible ളӮ೤aᆔႏa
+ק
+•AI Ⴓ༤նഽ (GM)ࡅ
+•ᇆି NPC ༢๤֥AI NPCअ҆൪့
+•ᄵႄౣଆൔ
+•༢๤अ
+1.3ׄ
+1.3.1ྏԷྍ
+1.༢๤
+ଆॶb২ೂğ
+•೤ඵວ
+•ଆൔ
+•૫
+2.॥ᇅ
+NPCႮ Knowledge Filter౼ປᆜ Story Bibleࠇࡱ
+௜ྟb
+3.ԎའҪ
+č Chat ਍฿aSuggested ActionsaFree Action ሱႮྛ
+ູStructuredActionᄵ၂ᇁྟb
+4.෿ UIܒࡏ
+؊UIݖWidget Registryऌ ui_config෿௓ልđ ໭ླAIྟ
+b
+4
+
+--- PAGE 6 ---
+1.3.2ׄ
+•Ⴟ Next.js 14 App Routerܒࡏ؊
+•TypeScriptၬđಒЌս઒ᇉਈ
+•ಸ OpenAI Chat Completions֥AI Provider१
+•đьႿঔᅚ
+1.4ࣟ
+•ཌഈखЧ೪௜෻܂AI GMൔखЧุဒ
+•߄ᄎႏӮЧ
+•ᇹ৘ྟ
+•ტ஡࿞࡬
+•჎ু჎ু࿊ᄴ
+1.5໊
+खЧ೪ႋႨཌྷбđAI Story Foundry ऎႵၛ༯Ⴊ൝ğ
+หྟ Ԯ๤खЧ೪ App AI Story F oundry
+AI GM ᆦӻֆଆϰ ᇆିྻ൙ളӮ
+NPC ྛູЧ߃ܿ
+൙ളӮଆϰ AIളӮ
+ᄵൡ஥ᄵ ีҋሱൡႋ
+अअק
+ࢸ໭॥ᇅ
+і 1:༅
+5
+
+--- PAGE 7 ---
+2ඍ
+2.1 ཛଢଢѓ
+AI Story Foundry۱AI Story Engineିğ
+•ളӮ Story Bible
+•Ⴟ Story Bible෿ UIࡗٜ
+•ൌགྷ AI GMބAI NPC೤Ď
+•޹World Stateק
+2.2ྏჰᄵ
+1. Story Bible ື၂ྟğStory Bible൙ඔऌჷ
+2. W orld State ື၂ྟğWorld Stateሑ෿ჷ
+3. Rule Engine ື၂ྟğRule Engineೆ१
+4. AI GM ཋᇅğAI GM౼ປᆜ Story BibleڿWorld State
+5. AI NPC ཋᇅğAI NPC౼ປᆜ Story Bible౼ Knowledge Filterअ҆
+൪့
+6.१ᆦӻ ChataSuggested Actions aFree ActionҪ๤၂
+Ӯ Structured Action
+7.෿ UI ᛴಙ؊UI ҂Ⴎ AIݖWidget Registryऌ ui_config෿௓
+ል
+2.3ඌᅜ
+োඌ
+ࡏNext.js 14 + React 18 + TypeScript
+ࡏTailwind CSS 3
+؊ުNext.js API Routes
+ൌൈ๙ྐ Socket.IOčყ਽Ď
+ඔऌ९ MVPູ PostgreSQL
+AIༀ Mock Provider + OpenAI-compatible Chat Completions
+і 2:ඌᅜ
+6
+
+--- PAGE 8 ---
+3ܒࢲ
+3.1 StorySeed
+൙Էၩğ
+1 interface StorySeed {
+2 genre : string ;
+3 opening : string ;
+4 ending : string ;
+5 characters : string ;
+6 world_setting : string ;
+7 source_type : " manual " | " ai_generated ";
+8 }
+3.2 StoryBible
+ğ
+1 interface StoryBible {
+2 id: string ;
+3 title : string ;
+4 version : number ;
+5 world_setting : WorldSetting ;
+6 roles : Role [];
+7 npcs : NPC [];
+8 factions : Faction [];
+9 chapters : Chapter [];
+10 events : StoryEvent [];
+11 endings : Ending [];
+12 metrics : Metric [];
+13 rules : RulePackRef [];
+14 knowledge : KnowledgeEntry [];
+15 ui_config : UIConfig ;
+16 runtime_modules : StoryRuntimeModules ;
+17 character_models : CharacterModel [];
+18 faction_models : FactionModel [];
+19 relationship_graph : RelationshipGraph ;
+20 knowledge_graph : KnowledgeGraph ;
+21 }
+3.3 Role
+ၬğ
+1 interface Role {
+2 id: string ;
+3 name : string ;
+4 type : " player_role ";
+5 public_identity : string ;
+7
+
+--- PAGE 9 ---
+6 private_background : string ;
+7 public_goal : string ;
+8 secret_goal : string ;
+9 starting_location : string ;
+10 initial_knowledge : string [];
+11 abilities : Ability [];
+12 }
+3.4 NPC
+ၬğ
+1 interface NPC {
+2 id: string ;
+3 name : string ;
+4 public_identity : string ;
+5 personality : Personality ;
+6 goal : string ;
+7 secret_goal : string ;
+8 memory : string [];
+9 initial_knowledge : string [];
+10 knowledge_scope : " limited ";
+11 behavior_style : BehaviorStyle ;
+12 }
+3.5 Metric
+ၬğ
+1 interface Metric {
+2 id: string ;
+3 label : string ;
+4 type : " number " | " boolean " | " text ";
+5 scope : " global " | " role " | " faction " | " relationship ";
+6 min: number ;
+7 max: number ;
+8 initial : number ;
+9 visibility : " public " | " hidden ";
+10 }
+3.6 WorldState
+ᆇൌሑ෿ğ
+1 interface WorldState {
+2 story_id : string ;
+3 room_id : string ;
+4 chapter : number ;
+5 turn : number ;
+8
+
+--- PAGE 10 ---
+6 flags : Record <string , boolean >;
+7 metrics : MetricState [];
+8 events : EventState [];
+9 relationships : RelationshipState [];
+10 locations : LocationState [];
+11 knowledge_state : KnowledgeState ;
+12 character_states : Record <string , CharacterRuntimeState >;
+13 faction_states : Record <string , FactionRuntimeState >;
+14 communication_state : CommunicationState ;
+15 balance_state : BalanceState ;
+16 }
+3.7 StructuredAction
+ބࡅNPC๤၂іൕğ
+1 interface StructuredAction {
+2 actor_id : string ;
+3 actor_type : " player " | "npc ";
+4 action_source : " quick_action " | " suggested_action " | " free_action " | " chat " | "
+npc_planner ";
+5 action_type : ActionType ;
+6 target : string ;
+7 method : string ;
+8 intent : string ;
+9 risk_level : "low" | " medium " | " high ";
+10 raw_input ?: string ;
+11 }
+9
+
+--- PAGE 11 ---
+4ܒࡏ
+4.1 ଆॶሹফ
+ࠩଆॶ ૭ඍ
+P0 Story Input Moduleູѓሙ StorySeed
+P0 Story Bible Generatorऌ StorySeed ളӮປᆜ Story Bible
+P0 Story Bible Validator ཮ဒ Story Bibleᆞಒྟ
+P0 Room Systemaष൓Ď
+P0 World State Engineሑ෿
+P0 Player Interaction LayerҪčChataSuggested ActionsaFree Ac-
+tionĎ
+P0 Action Parserູ StructuredAction
+P0 Rule Engineྍ
+P0 Widget RegistryᇿҨᇏྏ
+P0 UI Builder෿ UIఖ
+P1 AI GM Module AI׮
+P1 NPC Knowledge Filter NPCᄯअ҆൪့
+P1 NPC Planner NPCఖ
+P1 Event Trigger System༢๤
+P1 Story Controller॥ᇅ
+P1 Ending Judgeఖ
+P2 Story Analyzer༅
+P2 Story AdapterҀಆ
+P2 Multi Rule Packކ
+P2 Database Persistence߄ࣲ
+і 3:ࠩ
+4.2ࢳ
+4.2.1 Story Input Module
+൙Էၩđᆦӻਆᇕൻೆଆൔğ
+•؍”൙Էၩ” ໓Чൻೆ
+•Ď
+ູѓሙ StorySeedൔb
+4.2.2 Story Bible Generator
+ऌ StorySeed֥Story Bibleଆॶ஥ᇂğ
+•೤ඵວ
+•૫
+10
+
+--- PAGE 12 ---
+• ॣ҇/ᅞᆚ/ݔު
+֥Story Bibleğ
+•षଢѓa૝ૡଢѓĎ
+• NPCࢸ
+•҃
+•ࡱ
+•ᄵ
+•ބUI ஥ᇂ
+4.2.3 Rule Engine
+ᄳğ
+1.భखЧো྘
+2.ੱ
+3.Ď
+4.ྐ಩/༢
+5.ࡱ
+6.ݔࢲ֥׮
+ൔğ
+ੱ =ੱ(50%)+Ӯ+Ӯ+Ӯ+ሑ෿ྩᆞ+NPCಠྩᆞ−ـ
+ੱ༯ཋູ 35%đഈཋູ 95%b
+4.2.4 W orld State Engine
+ݖࣜRule Engine bᆦӻğ
+•ຶ 0-100Ď
+•ؿ/Ď
+•ࠃ/ඵວ/ാሶ/Ď
+•Ď
+•৘č൝৯aሧჷa૶ྏĎ
+•ӮჴĎ
+•ඔĎ
+11
+
+--- PAGE 13 ---
+4.2.5 AI GM Module
+AI GM౼ປᆜ Story BibleބWorld Stateđ֌ᆺିൻԛğ
+• ྻ൙໓ЧčNarrationĎ
+•čSuggested EventsĎ
+•ൕྐ༏čRevealed Information Ď
+•čSuggested Actions Ď
+AI GMᄳğ
+• ളӮषӆྻ൙
+•؈ݖࢫ
+•ݔࢲ׮
+•ሽ
+•अྻ൙
+4.2.6 NPC Knowledge Filter
+۱NPCᄯअ҆൪့đಒЌ NPCğ
+NPCຶğ
+•૝ૡଢѓ
+•ၘᆩ൙ൌ
+•ࡱ
+•༢ሑ෿
+•׮
+NPCຶğ
+• ປᆜ Story Bible
+• ቋᇔᆇཌྷ
+• ః෰ NPC૝ૡ
+•ࡱ
+•ࢫ
+•ࡱ
+•׮
+12
+
+--- PAGE 14 ---
+4.2.7 Ending Judge
+ऌ World State၇ऌğ
+•؇ࣉ100 Ď
+•ሑ෿čೂ ritual_stopped = true Ď
+•ሑ෿čೂ event_holy_grail_recoveredĎ
+अb
+13
+
+--- PAGE 15 ---
+5 API࠹
+5.1 API ਫ਼Ⴎሹফ
+مٚࣥ૭ඍ
+POST /api/stories/generate ളӮ Story Bible
+POST /api/stories/validate ཮ဒ Story Bible
+POST /api/roomsࡗٜࡹ
+POST /api/rooms/:roomId/joinࡗٜ
+POST /api/rooms/:roomId/select-role೤
+POST /api/rooms/:roomId/start൙
+GET /api/rooms/:roomId/stateಆअሑ෿
+GET /api/rooms/:roomId/players/:playerId/view࢘
+POST /api/rooms/:roomId/chatࢌRP ਍฿
+POST /api/rooms/:roomId/actions׮
+POST /api/rooms/:roomId/npc-turn ᆳྛ NPCކ߭
+POST /api/rooms/:roomId/endings/checkअ
+і 4: API ਫ਼Ⴎі
+5.2ၬ
+5.2.1 POST /api/stories/generate
+ളӮ Story Bible b
+౨౰ุğ
+1 {
+2 " story_seed ": {
+3 " genre ": " political_intrigue ",
+4 " opening ": " ഼ Ж ാ ౑ ᆭ ၀ ..." ,
+5 " ending ": "अ ",
+6 " characters ": " ຦ ሰ a ഼ ୯ a Տ ग़ a ఎ ൖ ",
+7 " world_setting ": "ݓ," 
+8 " source_type ": " manual "
+9 }
+10 }
+ཙႋุğ
+1 {
+2 " success ": true ,
+3 " story_bible ": { /* StoryBibleའ */ },
+4 " playability_score ": 85,
+5 " features ": { " has_conflict ": true , ... }
+6 }
+14
+
+--- PAGE 16 ---
+5.2.2 POST /api/rooms
+b
+౨౰ุğ
+1 {
+2 " story_bible_id ": " demo_lost_holy_grail ",
+3 " max_players ": 4
+4 }
+ཙႋุğ
+1 {
+2 " success ": true ,
+3 " room_id ": " room_abc123 ",
+4 " status ": " waiting "
+5 }
+5.2.3 POST /api/rooms/:roomId/actions
+b
+౨౰ุğ
+1 {
+2 " player_id ": " player_001 ",
+3 " action ": {
+4 " action_type ": " investigate ",
+5 " target ": " temple ",
+6 " method ": " search ",
+7 " intent ": " find_clues ",
+8 " risk_level ": "low",
+9 " raw_input ": "׏" 
+10 }
+11 }
+ཙႋุğ
+1 {
+2 " success ": true ,
+3 " rule_result ": {
+4 " success ": true ,
+5 " public_result ": "གྷ ਔ ཌ ෬ ",
+6 " private_result ": "ࠖ," 
+7 " state_updates ": [...]
+8 },
+9 " narrative ": "ֻ1ކ߭ ,"... 
+10 " suggested_actions ": [...]
+11 }
+15
+
+--- PAGE 17 ---
+6်૫
+6.1ܒࢲ
+်૫ࣥି
+൮် /aҰु Demo
+൙ളӮ် /generate൙ԷၩaളӮ Story Bibleࡗٜࡹ
+ր် /room/[roomId]೤
+૫ /room/[roomId]/game૫
+अ် /ending/[roomId]ང
+і 5:်૫
+6.2ࡱ
+čWidgetsĎ ğ
+ࡱି
+NarrativePanel ཁൕ GM ྻ൙໓Ч
+ChatPanelࡅRP܋܄/ᆔႏ/඲਍Ď
+SuggestedActionsPanelο୦
+FreeActionInputൻೆॿ
+RolePanel೤ྐ༏ᅚൕ
+MetricPanelᆷѓཁൕ
+EventPanelሔሶ
+EvidencePanelᆣऌ
+PlayerInfoPanelሹ
+FactionPanelӮჴĎ
+і 6:ࡱ
+16
+
+--- PAGE 18 ---
+7 Ⴓ༤ੀӱ
+7.1 Ⴓ༤ᄎྛੀӱ
+1. AI GMభख౦ྻ൙
+2.؀NarrativePanel
+3.ᄝ ChatPanelྛ RPᄵĎ
+4.ࠌׄࡅSuggested Actionsᄝ FreeActionInput׮
+5. Action Parserູ StructuredAction
+6. Rule Engineෘ
+7. World State Engineྍ
+8. Event Trigger Systemؿ
+9. NPC Knowledge Filter۱NPC ളӮअ҆൪့
+10. NPC Planner ളӮ NPC Action Proposal
+11. NPCೆ Rule Engine
+12. World Stateྍ
+13. Story Controllerࣉ
+14. Ending Judgeࡱ
+15. AI GMކ߭
+7.2ো
+7.2.1׮Social Actions)
+• talkซĎ apersuadeĎ athreatenčຯཽĎ
+• deceiveč௺ௌĎ aallyૐĎ abetrayčМஒĎ aconfessčฌϢĎ
+7.2.2׮Investigation Actions)
+• investigateҰĎ asearchčෆ෬Ď atrackčሔሶĎ
+• eavesdropč๦๐Ď ainterrogateč஍໙Ď adecodeĎ
+• spyčᆍҳĎ adivinationčᅝѾĎ agather_intelligence౦БĎ
+7.2.3׮Political Actions)
+• commandĎ asummon_meetingၰĎ
+• gain_supportčᆚ౼ᆦӻĎ acoupಃĎ
+• impeach᎐Ď aappointč಩ଁĎ
+17
+
+--- PAGE 19 ---
+7.2.4׮Combat Actions)
+• attackĎ aassassinatečՏ೪Ď aduelĎ
+• ambushĎ adefend൯Ď aexecutečԩྗĎ asacrificeĎ
+7.2.5׮Resource Actions)
+• buyč൬ઙĎ atradeၞĎ astealč๦౼Ď
+• transportčሇ၍Ď abuildᄯĎ
+18
+
+--- PAGE 20 ---
+8 Demo൙ğാઋ഼Жᆭ၀
+8.1 Demoඍ
+ཛଢ ଽಸ
+ো྘ߘ+ ಃଔ + ๷৘
+೤ ຦ሰa഼୯aՏग़aఎൖ
+NPC࢝
+ྏᆷѓၐᆴ
+ࡱ੹
+अۿ
+і 7: ാઋ഼Жᆭ၀ Demo
+8.2ࣟ
+ᄅჵ
+Ұാ౑
+׮...
+8.3ࢺࡥ
+຦ሰ഼
+๓ၼଔ
+഼୯ି৯đ ૝
+ᆇᆞ૝ૡ
+Տग़Ұđ ൌᄵ
+ਸ਼Ⴕ๭ଔ
+ఎൖ຦ሰđ ૝ૡ൞ᄻ
+૝ૡ಩ༀ
+8.4 NPCࢺࡥ
+ഽ֥ݓ
+Ұᇶӻದ
+຦຦đ ദุૄঃჟ༯đ ಏ
+٢
+࢝ᄳ಩
+༢
+8.5৽
+1. ഼Жാ౑ᇏപ૝ཨാ
+2.ࢲࠢٚ۲Ұ
+3.Ұଽ҆
+4.གྷฆ
+5.ഽ၎ൔ၎ൔ
+6.੹૫ਢठᄴ
+19
+
+--- PAGE 21 ---
+8.6ᆦ
+•֤ࣷݓ௜
+•പ්ྜႆ
+• ຦ಃЩ෯ֹ
+•ۿ৫ྍᇇ྽
+20
+
+--- PAGE 22 ---
+9 ҆ඇაᄎྛ
+9.1ေ౰
+• Node.js >= 18.0.0
+• npm >= 9.0.0
+• ॖ࿊ğDeepSeek API Key čႨႿ AIିĎ
+9.2 νልაᄎྛ
+1 # ν ል ၇ ঠ
+2 npm install
+3
+4 #ଆ ൔ
+5 npm run dev
+6
+7 #ࡹܒ 
+8 npm run build
+9 npm run start
+ᆶğhttp://localhost:3000
+9.3 AI ஥ᇂčॖ࿊Ď
+ࡹenv.localၛఓႨᆇൌ AIିğ
+1 DEEPSEEK_API_KEY = your_api_key
+2 DEEPSEEK_BASE_URL = https :// api. deepseek .com
+3 DEEPSEEK_MODEL = deepseek -v4 -pro
+đGM ྻ൙aNPCႨᆇൌଆ྘b
+21
+
+--- PAGE 23 ---
+10ܒࢲ
+1 src/
+2 app/ # Next .js App Router ် ૫ ა API
+3 api/ # API ਫ਼ Ⴎ
+4 rooms / #ܱAPI
+5 [ roomId ]/
+6 actions / route .ts #׮
+7 chat / route .ts # ਍ ฿ ཨ ༏
+8 endings / check / route .ts #Ұ
+9 join / route .ts #ࡗٜ 
+10 npc - turn / route .ts # NPCކ߭ 
+11 players /[ playerId ]/ view / route .ts #࢘
+12 select - role / route .ts #೤
+13 start / route .ts # ष ൓ Ⴓ ༤
+14 state / route .ts #ሑ ෿
+15 stories / #ܱAPI
+16 generate / route .ts #൙
+17 validate / route .ts #൙
+18 generate / #൙ ള Ӯ ်
+19 room /[ roomId ]/ #် ૫
+20 ending /[ roomId ]/ #अ ် ૫
+21 page .tsx # ൮ ်
+22 layout .tsx #ࡱ
+23 components /
+24 widgets / #ࡱ
+25 ChatPanel .tsx
+26 NarrativePanel .tsx
+27 RolePanel .tsx
+28 MetricPanel .tsx
+29 EventPanel .tsx
+30 EvidencePanel .tsx
+31 SuggestedActionsPanel .tsx
+32 FreeActionInput .tsx
+33 PlayerInfoPanel .tsx
+34 FactionPanel .tsx
+35 index .ts
+36 ui/ # UIࠠ
+37 UIBuilder .tsx
+38 engine / #ྏ ႄ ౣ ଆ ॶ
+39 storyBibleGenerator .ts #൙ ള Ӯ
+40 storyBibleValidator .ts #൙ ཮ ဒ
+41 storyAnalyzer .ts #༅
+42 storyAdapter .ts #൙ ൡ ஥
+43 ruleEngine .ts #ᄵ ႄ ౣ
+44 worldStateEngine .ts #ሑ ෿
+45 aiGM .ts # AI GM
+46 npcKnowledgeFilter .ts # NPCੲ
+47 npcPlanner .ts # NPC߃ܿ 
+48 actionParser .ts #༅
+22
+
+--- PAGE 24 ---
+49 eventTriggerSystem .ts #ؿ
+50 endingJudge .ts #ק
+51 storyController .ts #൙ ॥ ᇅ
+52 featureExtractor .ts # ห ᆘ ิ ౼
+53 rulePackSelector .ts #ᄵ Ї ࿊ ᄴ
+54 metricGenerator .ts # ᆷ ѓ ള Ӯ
+55 uiConfigGenerator .ts # UI ஥ ᇂ ള Ӯ
+56 storyPlayabilityAnalyzer .ts #༅
+57 index .ts
+58 registry / # ᇿ Ҩ ᇏ ྏ
+59 widgetRegistry .ts #ᇿ Ҩ
+60 rulePackRegistry .ts #ᄵ ᇿ Ҩ
+61 types / # TypeScriptၬ
+62 story .ts
+63 action .ts
+64 worldState .ts
+65 room .ts
+66 role .ts
+67 metric .ts
+68 chat .ts
+69 ai.ts
+70 index .ts
+71 mock / # Mock ඔ ऌ
+72 demoStoryBible .ts # Demo൙
+73 mockAIProvider .ts # Mock AI
+74 lib/ #ऎ ९
+75 aiProvider .ts # AIᆀ
+76 llmProvider .ts # LLM१
+77 roomManager .ts #৘
+78 gameStore .ts # Ⴓ ༤ ሑ ෿
+23
+
+--- PAGE 25 ---
+11 ໃটᅚຬ
+11.1߃ܿ
+•Ď
+•Ӯ
+•߄ࣲ
+•૫
+•ି
+11.2ࣟ
+•֥AI खЧ೪௜෻
+•ളӮଽಸčUGCĎ
+•ؿAIऎ
+• ฐ෬ AR/VRൔุဒ
+•׮
+24
+
+--- PAGE 26 ---
+12 ϱЧ৥ൎ
+ϱЧ ರ௹ྍ
+v1.6 2026-05-24 Agent-Based Story Simulation MVPߌ
+v1.5 2026-05-24 NPC Agent༢๤
+v1.4 2026-05-24 AI GM๷৘a๙Ⴈ Rule Engine
+v1.3 2026-05-24ঌ
+v1.2 2026-05-24 Story Bible ളӮა AI GM ྻ൙
+v1.1 2026-05-23޺ࢌࡅ
+v1.0 2026-05-20࠹
+і 8:ྍ৥ൎ
+25
+
+--- PAGE 27 ---
+13 ᇁ྆
+೶Ж AgentԷᄯ৯b
+ऎğNext.jsaReactaTailwind CSSaTypeScriptb
+ᆶğ https://github.com/example/ai-story-foundry
+ᆶğ http://ai-story-foundry.example.com
+Copyright © 2026ؒ
+ϱಃ෮ႵЌ਽၂్ಃ০
+26

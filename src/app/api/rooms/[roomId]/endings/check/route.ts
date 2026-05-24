@@ -29,11 +29,22 @@ export async function POST(
         ending_description: endingResult.ending.description,
         world_state_summary: {
           flags: worldState.flags,
-          metrics: worldState.metrics.map((m) => ({
-            id: m.metric_id,
-            label: m.metric_id,
-            value: m.value,
-          })),
+          metrics: worldState.metrics.map((m) => {
+            // Find the metric definition in bible to get proper label
+            const metricDef = bible.metrics.find((metric) => metric.id === m.metric_id);
+            const labelMap: Record<string, string> = {
+              situation_stability: "局势稳定度",
+              truth_progress: "真相进度",
+              faction_power: "势力值",
+              trust: "信任度",
+              suspicion: "怀疑值",
+            };
+            return {
+              id: m.metric_id,
+              label: metricDef?.label || labelMap[m.metric_id] || m.metric_id,
+              value: m.value,
+            };
+          }),
           active_events: worldState.events.filter((e) => e.triggered).map((e) => e.event_id),
           player_locations: {},
         },

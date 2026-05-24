@@ -94,7 +94,7 @@ export default function EndingPage() {
             {data.victory_settlement.map((item) => (
               <div key={item.player_id} className="p-3 rounded border border-midnight-600 bg-midnight-700/30">
                 <div className="flex items-center justify-between gap-3 mb-2">
-                  <span className="text-parchant-200 font-medium">{item.role_id || item.player_id}</span>
+                  <span className="text-parchant-200 font-medium">{settlementDisplayName(item)}</span>
                   <span className="text-xs text-parchant-500">状态：{lifeStatusLabel(item.life_status)}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -176,4 +176,31 @@ function lifeStatusLabel(status: string): string {
     imprisoned: "囚禁",
   };
   return labels[status] || status;
+}
+
+function settlementDisplayName(item: {
+  player_id: string;
+  role_id: string | null;
+}): string {
+  // Map internal IDs to display names
+  const roleNames: Record<string, string> = {
+    role_1: "王子",
+    role_2: "圣女",
+    role_3: "刺客",
+    role_4: "骑士",
+  };
+
+  if (item.role_id && roleNames[item.role_id]) {
+    return roleNames[item.role_id];
+  }
+
+  // Fallback: clean up the ID for display
+  if (item.role_id) {
+    return item.role_id
+      .replace(/^role_/, "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  return "未知角色";
 }

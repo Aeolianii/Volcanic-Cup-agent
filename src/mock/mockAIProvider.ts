@@ -67,7 +67,7 @@ export const mockAIProvider: AIProvider = {
 
   async generateEndingNarrative(context: EndingContext): Promise<string> {
     const metrics = context.world_state_summary.metrics
-      .map((metric) => `- ${metric.id}: ${metric.value}`)
+      .map((metric) => `- ${metric.label || metric.id}: ${metric.value}`)
       .join("\n");
     return `\n## ${context.ending_title}\n\n关键事件推动故事抵达这一结局。玩家此前的选择改变了真相、关系和局势走向。\n\n${metrics}`;
   },
