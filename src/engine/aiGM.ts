@@ -3,6 +3,7 @@ import type {
   GMActionContext,
   GMContext,
   GMNarrativeOutput,
+  ProgressionGuidance,
   RuleResult,
   StoryBible,
   StructuredAction,
@@ -198,6 +199,7 @@ function buildGMContext(
           .flatMap((location) => location.present_characters.map((character) => [character, location.id]))
       ),
     },
+    progression_guidance: buildProgressionGuidance(bible, state, lastAction),
     recent_events: state.events
       .filter((event) => event.triggered)
       .map((event) => eventLabel(event.event_id)),
@@ -205,6 +207,153 @@ function buildGMContext(
     current_chapter: state.chapter,
     last_action: lastAction,
   };
+}
+
+function buildProgressionGuidance(
+  bible: StoryBible,
+  state: WorldState,
+  lastAction?: GMActionContext
+): ProgressionGuidance {
+  const progressMetric = pickMetricSummary(bible, state, [
+    "truth_progress", "progress", "truth", "clue", "evidence", "真相", "进度", "线索", "证据",
+  ]);
+  const stabilityMetric = pickMetricSummary(bible, state, [
+    "kingdom_stability", "situation_stability", "political_stability", "stability", "order", "safety", "稳定", "秩序", "安全",
+  ]);
+  const pressureMetric = pickMetricSummary(bible, state, [
+    "holy_grail_influence", "supernatural_pressure", "faction_power", "suspicion", "pressure", "influence", "power", "tension", "怀疑", "压力", "影响", "势力", "紧张",
+  ]);
+
+  const nextEvents = bible.events
+    .filter((event) => !state.events.find((item) => item.event_id === event.id)?.triggered)
+    .slice(0, 4)
+    .map((event) => ({
+      id: event.id,
+      title: event.title,
+      chapter_id: event.chapter_id,
+      missing_conditions: event.trigger.conditions
+        .filter((condition) => !conditionSatisfiedForGuidance(condition.field, condition.operator, condition.value, state))
+        .map((condition) => describeCondition(condition.field, condition.operator, condition.value, bible, state)),
+    }));
+
+  const actorDonePrefix = lastAction ? `done_${lastAction.actor_id}_` : "";
+  const avoidActionKeys = Object.keys(state.flags)
+    .filter((flag) => flag.startsWith("done_") && state.flags[flag])
+    .map((flag) => actorDonePrefix && flag.startsWith(actorDonePrefix)
+      ? flag.slice(actorDonePrefix.length)
+      : flag.replace(/^done_/, ""))
+    .slice(-12);
+
+  if (lastAction) {
+    avoidActionKeys.push(actionKey(lastAction.action_type, lastAction.target, lastAction.method, lastAction.intent));
+  }
+
+  return {
+    progress_metric: progressMetric,
+    stability_metric: stabilityMetric,
+    pressure_metric: pressureMetric,
+    next_events: nextEvents,
+    action_strategy: buildActionStrategy(nextEvents, lastAction),
+    avoid_action_keys: Array.from(new Set(avoidActionKeys)),
+  };
+}
+
+function pickMetricSummary(
+  bible: StoryBible,
+  state: WorldState,
+  candidates: string[]
+): ProgressionGuidance["progress_metric"] {
+  const metric = bible.metrics.find((item) => {
+    const haystack = `${item.id} ${item.label}`.toLowerCase();
+    return candidates.some((candidate) => item.id === candidate || haystack.includes(candidate.toLowerCase()));
+  });
+  if (!metric) return undefined;
+  return {
+    id: metric.id,
+    label: metric.label,
+    value: state.metrics.find((item) => item.metric_id === metric.id)?.value ?? metric.initial,
+  };
+}
+
+function conditionSatisfiedForGuidance(field: string, operator: string, value: unknown, state: WorldState): boolean {
+  const metric = state.metrics.find((item) => item.metric_id === field);
+  if (metric) return compareGuidanceValue(metric.value, operator, value);
+
+  if (field in state.flags) return operator === "exists" ? state.flags[field] === true : compareGuidanceValue(state.flags[field], operator, value);
+
+  if (field.startsWith("flag_")) {
+    const flagValue = state.flags[field.replace(/^flag_/, "")];
+    return operator === "exists" ? flagValue === true : compareGuidanceValue(flagValue, operator, value);
+  }
+
+  if (field === "turn") return compareGuidanceValue(state.turn, operator, value);
+  if (field === "chapter") return compareGuidanceValue(state.chapter, operator, value);
+
+  if (field.startsWith("event_")) {
+    const eventId = field.replace(/^event_/, "");
+    const eventState = state.events.find((event) => event.event_id === eventId);
+    return operator === "exists" ? eventState?.triggered === true : compareGuidanceValue(eventState?.triggered, operator, value);
+  }
+
+  return false;
+}
+
+function compareGuidanceValue(current: unknown, operator: string, target: unknown): boolean {
+  switch (operator) {
+    case "eq": return current === target;
+    case "gt": return Number(current) > Number(target);
+    case "lt": return Number(current) < Number(target);
+    case "gte": return Number(current) >= Number(target);
+    case "lte": return Number(current) <= Number(target);
+    case "contains": return String(current).includes(String(target));
+    case "exists": return current !== undefined && current !== null;
+    default: return false;
+  }
+}
+
+function describeCondition(field: string, operator: string, value: unknown, bible: StoryBible, state: WorldState): string {
+  if (field.startsWith("event_")) {
+    const eventId = field.replace(/^event_/, "");
+    const event = bible.events.find((item) => item.id === eventId);
+    return `需要先推动事件「${event?.title || "前置事件"}」`;
+  }
+
+  const metric = bible.metrics.find((item) => item.id === field);
+  if (metric) {
+    const current = state.metrics.find((item) => item.metric_id === field)?.value ?? metric.initial;
+    return `需要让「${metric.label}」满足 ${operator} ${value}（当前 ${current}）`;
+  }
+
+  if (field === "turn") return `需要回合推进到 ${value}`;
+  if (field === "chapter") return `需要章节推进到 ${value}`;
+  if (field.startsWith("flag_")) return "需要先完成一个相关前置行动";
+  return "需要补足一个未完成的前置条件";
+}
+
+function buildActionStrategy(
+  nextEvents: ProgressionGuidance["next_events"],
+  lastAction?: GMActionContext
+): string[] {
+  const missing = nextEvents.flatMap((event) => event.missing_conditions);
+  const strategy = [
+    "生成 3 到 5 个新的下一步行动，必须围绕未触发事件的缺口设计。",
+    "不要重复上一行动，也不要把已点击过的行动换个说法重新给出。",
+  ];
+
+  if (lastAction?.success) {
+    strategy.push("上一行动成功，优先给出能承接其线索、目标或行动类型的关联行动，让玩家感到铺垫产生了优势。");
+  } else if (lastAction) {
+    strategy.push("上一行动失败，给出补救、换目标、降低风险或另辟路径的行动，而不是继续原地重复。");
+  }
+
+  if (missing.some((item) => item.includes("指标") || item.includes("满足"))) {
+    strategy.push("如果下一事件缺少指标进度，推荐调查、核对、公开证据、协调关系或稳定局势等能改变指标的行动。");
+  }
+  if (missing.some((item) => item.includes("前置事件"))) {
+    strategy.push("如果下一事件缺少前置事件，推荐能直接推动该前置事件浮现的行动。");
+  }
+
+  return strategy;
 }
 
 function buildLastActionContext(
@@ -578,12 +727,20 @@ function refreshSuggestedActions(
   lastAction?: GMActionContext
 ): GMNarrativeOutput["suggested_actions"] {
   if (!allowsTemplateFallback(bible)) {
-    return mergeSuggestedActions([], aiActions, lastAction).slice(0, 5);
+    return filterFreshSuggestedActions(
+      rankProgressiveActions(mergeSuggestedActions([], aiActions, lastAction), state, bible),
+      state,
+      lastAction
+    ).slice(0, 5);
   }
 
-  return mergeSuggestedActions(
-    buildFollowUpActions(state, bible, lastAction),
-    aiActions,
+  return filterFreshSuggestedActions(
+    rankProgressiveActions(
+      mergeSuggestedActions(buildFollowUpActions(state, bible, lastAction), aiActions, lastAction),
+      state,
+      bible
+    ),
+    state,
     lastAction
   ).slice(0, 5);
 }
@@ -615,6 +772,49 @@ function actionKey(actionType: string, target: string, method: string, intent: s
   return [actionType, target, method, intent].map((value) => String(value || "").toLowerCase()).join("|");
 }
 
+function filterFreshSuggestedActions(
+  actions: GMNarrativeOutput["suggested_actions"],
+  state: WorldState,
+  lastAction?: GMActionContext
+): GMNarrativeOutput["suggested_actions"] {
+  const lastKey = lastAction ? actionKey(lastAction.action_type, lastAction.target, lastAction.method, lastAction.intent) : "";
+  const actorDonePrefix = lastAction ? `done_${lastAction.actor_id}_` : "";
+  const usedFlagSuffixes = Object.keys(state.flags)
+    .filter((flag) => flag.startsWith("done_") && state.flags[flag])
+    .map((flag) => actorDonePrefix && flag.startsWith(actorDonePrefix)
+      ? flag.slice(actorDonePrefix.length)
+      : flag.replace(/^done_/, ""));
+
+  return actions.filter((action) => {
+    const key = actionKey(action.action_type, action.target, action.method, action.intent);
+    if (key === lastKey) return false;
+    const safeKey = key.replace(/[^a-zA-Z0-9_]/g, "_");
+    return !usedFlagSuffixes.some((usedKey) => usedKey === safeKey || usedKey.endsWith(`_${safeKey}`));
+  });
+}
+
+function rankProgressiveActions(
+  actions: GMNarrativeOutput["suggested_actions"],
+  state: WorldState,
+  bible: StoryBible
+): GMNarrativeOutput["suggested_actions"] {
+  const nextEventIds = bible.events
+    .filter((event) => !state.events.find((item) => item.event_id === event.id)?.triggered)
+    .slice(0, 3)
+    .map((event) => event.id);
+
+  return [...actions].sort((a, b) => scoreActionForProgress(b, nextEventIds) - scoreActionForProgress(a, nextEventIds));
+}
+
+function scoreActionForProgress(action: GMNarrativeOutput["suggested_actions"][number], nextEventIds: string[]): number {
+  let score = 0;
+  if (nextEventIds.includes(action.target)) score += 20;
+  if (["investigate", "search", "track", "eavesdrop", "interrogate", "decode"].includes(action.action_type)) score += 10;
+  if (["persuade", "confess", "command", "gain_support", "summon_meeting", "defend"].includes(action.action_type)) score += 8;
+  if (/resolve|stop|stabilize|public|evidence|clarify|confront|解决|阻止|稳定|公开|证据|澄清|对质/.test(`${action.method} ${action.intent} ${action.context}`)) score += 8;
+  return score;
+}
+
 function normalizeActionLabel(label: string): string {
   return String(label || "").replace(/[“”"'\s]/g, "").toLowerCase();
 }
@@ -628,6 +828,8 @@ function buildFollowUpActions(
   const event = bible.events.find((item) => item.id === activeEvent?.event_id) || bible.events[0];
   const archmage = bible.npcs.find((npc) => npc.name.includes("大法师")) || bible.npcs[0];
   const bishop = bible.npcs.find((npc) => npc.name.includes("主教")) || bible.npcs[1] || bible.npcs[0];
+  const oldKing = bible.npcs.find((npc) => npc.name.includes("国王")) || bible.npcs[2] || bible.npcs[0];
+  const truthProgress = Number(state.metrics.find((metric) => metric.metric_id === "truth_progress")?.value ?? 0);
 
   if (lastAction?.target === "self_goal" || lastAction?.method === "reflect") {
     return [
@@ -680,6 +882,70 @@ function buildFollowUpActions(
   }
 
   if (["investigate", "search", "track", "eavesdrop", "interrogate", "decode"].includes(lastAction?.action_type || "")) {
+    if (state.chapter >= 3 || truthProgress >= 80) {
+      return [
+        {
+          label: "阻断仪式核心",
+          action_type: "command",
+          target: "underground_altar",
+          method: "ritual_interruption",
+          intent: "stop_ritual",
+          risk_level: "high",
+          context: "真相已经接近完整，现在可以把线索转化成阻止仪式的直接行动",
+        },
+        {
+          label: oldKing ? `向${oldKing.name}公开关键证据` : "公开关键证据",
+          action_type: "persuade",
+          target: oldKing?.id || "royal_court",
+          method: "present_evidence",
+          intent: "stabilize_realm",
+          risk_level: "medium",
+          context: "用已获得的证据争取公开支持，压制圣杯失窃引发的动乱",
+        },
+        {
+          label: bishop ? `逼问${bishop.name}封锁内殿原因` : "逼问封锁内殿原因",
+          action_type: "interrogate",
+          target: bishop?.id || "bishop",
+          method: "evidence_pressure",
+          intent: "expose_contradiction",
+          risk_level: "high",
+          context: "把地下祭坛和圣殿封锁联系起来，迫使关键人物给出解释",
+        },
+      ];
+    }
+
+    if (state.chapter >= 2 || truthProgress >= 45) {
+      return [
+        {
+          label: "追查地下入口",
+          action_type: "search",
+          target: "cathedral_basement",
+          method: "follow_runes",
+          intent: "find_altar",
+          risk_level: "medium",
+          context: "已有线索指向圣殿深处，继续调查可能发现失窃背后的仪式痕迹",
+        },
+        {
+          label: bishop ? `追问${bishop.name}内殿记录` : "追问内殿记录",
+          action_type: "talk",
+          target: bishop?.id || "bishop",
+          method: "record_confrontation",
+          intent: "verify_sanctum_log",
+          risk_level: "medium",
+          context: "用新线索核对圣殿封锁、守夜记录和圣杯失窃时间线",
+        },
+        {
+          label: "比对祭坛符文",
+          action_type: "decode",
+          target: "ancient_runes_discovered",
+          method: "rune_comparison",
+          intent: "identify_ritual",
+          risk_level: "medium",
+          context: "把已发现的异常痕迹转化为可验证的仪式证据",
+        },
+      ];
+    }
+
     return [
       {
         label: archmage ? `带着线索询问${archmage.name}` : "带着线索询问知情者",

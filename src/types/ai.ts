@@ -13,10 +13,25 @@ export interface AIProvider {
 export interface GMContext {
   story_bible: StoryBibleSummary;
   world_state_summary: WorldStateSummary;
+  progression_guidance?: ProgressionGuidance;
   recent_events: string[];
   current_turn: number;
   current_chapter: number;
   last_action?: GMActionContext;
+}
+
+export interface ProgressionGuidance {
+  progress_metric?: { id: string; label: string; value: unknown };
+  stability_metric?: { id: string; label: string; value: unknown };
+  pressure_metric?: { id: string; label: string; value: unknown };
+  next_events: Array<{
+    id: string;
+    title: string;
+    chapter_id?: string;
+    missing_conditions: string[];
+  }>;
+  action_strategy: string[];
+  avoid_action_keys: string[];
 }
 
 export interface GMActionContext {

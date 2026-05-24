@@ -217,7 +217,9 @@ export const llmAIProvider: AIProvider = {
               "禁止写出隐藏指标名称、内部 key 或具体数值；例如不要写“怀疑值上升5”，要写“你的举动引起了一些人的怀疑”。",
               "不要只说成功或失败，不要输出内部 id，不要编入当前 Story Bible 之外的题材模板。",
               "JSON 字段必须是 narration, suggested_events, revealed_information, suggested_actions, mood。",
+              "必须优先读取 progression_guidance：next_events 是下一批应被推动的事件，missing_conditions 是当前缺口，action_strategy 是推荐行动生成策略。",
               "suggested_actions 必须结合当前 World State、上一行动结果、已触发事件和角色处境生成 3 到 5 个新的下一步行动。",
+              "每个 suggested_action 都要能补足 progression_guidance 中的一个缺口，或者承接上一成功行动形成关联优势。",
               "suggested_actions 不得重复上一行动，不得使用与当前剧情无关的本地模板。",
               "narration 用中文，控制在 180 到 320 字。",
             ].join("\n"),
@@ -231,6 +233,7 @@ export const llmAIProvider: AIProvider = {
     const messages: ChatMessage[] = [
       systemJSON(
         "生成 GM 叙事。AI GM 可以读取摘要，但不能修改 World State。输出字段必须为 narration, suggested_events, revealed_information, suggested_actions, mood。suggested_actions 每项必须含 label, action_type, target, method, intent, risk_level, context。推荐行动必须基于当前 Story Bible、World State、当前章节、公开事件和角色处境生成，不能把当前玩家自己当作社交目标，不能输出与当前剧情无关的固定模板。"
+        + " 必须使用 progression_guidance 规划下一步：围绕 next_events 和 missing_conditions 给出能推进事件链、改变相关指标或承接上一成功行动的具体行动。"
       ),
       { role: "user", content: JSON.stringify(context) },
     ];

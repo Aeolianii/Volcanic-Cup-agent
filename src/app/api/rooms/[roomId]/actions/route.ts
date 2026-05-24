@@ -202,7 +202,10 @@ function eventEffectsToStateUpdates(effects: EventEffect[], playerId: string): S
           delta: typeof effect.value === "number" ? effect.value : Number(effect.value) || 0,
         }];
       case "add_knowledge":
-        return [{ type: "add_known_fact", target: playerId, fact_id: String(effect.value || effect.target) }];
+        return [
+          { type: "add_known_fact", target: playerId, fact_id: String(effect.value || effect.target) },
+          { type: "set_flag", flag: String(effect.value || effect.target), value: true },
+        ];
       case "reveal_event":
         return [{ type: "set_flag", flag: String(effect.target), value: effect.value }];
       case "change_location":

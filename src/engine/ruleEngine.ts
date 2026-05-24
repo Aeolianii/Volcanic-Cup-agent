@@ -7,8 +7,8 @@ import type {
   WorldState,
   StoryBible,
   ActionProposal,
-  getActionCategory,
 } from "@/types";
+import { getActionCategory } from "@/types";
 
 /**
  * Rule Engine
@@ -151,8 +151,8 @@ function calculateRoll(
       modifiers.push({ source: "risk", value: 5, reason: "中风险行动准备较充分" });
       break;
     case "high":
-      threshold = 60;
-      modifiers.push({ source: "risk", value: -5, reason: "高风险行动" });
+      threshold = 55;
+      modifiers.push({ source: "risk", value: 0, reason: "高风险行动" });
       break;
   }
 
@@ -196,25 +196,31 @@ function generateSuccessUpdates(
 
   // Investigation actions yield evidence
   if (!isReflectAction(action) && ["investigate", "search", "track", "eavesdrop", "interrogate", "decode"].includes(action.action_type)) {
+    const progressMetric = findProgressMetricId(bible);
     updates.push({
       type: "add_evidence",
       target: action.actor_id,
       fact_id: buildEvidenceFact(action, bible),
     });
-    updates.push({
-      type: "metric_change",
-      metric: "truth_progress",
-      delta: truthDeltaForAction(action),
-    });
+    if (progressMetric) {
+      updates.push({
+        type: "metric_change",
+        metric: progressMetric,
+        delta: progressDeltaForAction(action),
+      });
+    }
   }
 
   if (["talk", "persuade", "interrogate", "deceive"].includes(action.action_type)) {
+    const progressMetric = findProgressMetricId(bible);
     const npc = bible.npcs.find((item) => item.id === action.target);
-    updates.push({
-      type: "metric_change",
-      metric: "truth_progress",
-      delta: npc ? 8 : 5,
-    });
+    if (progressMetric) {
+      updates.push({
+        type: "metric_change",
+        metric: progressMetric,
+        delta: npc ? 8 : 5,
+      });
+    }
   }
 
   // Social actions affect relationships
@@ -266,6 +272,20 @@ function generateSuccessUpdates(
     }
   }
 
+  if (action.intent === "stop_ritual" || action.method === "ritual_interruption") {
+    updates.push({ type: "set_flag", flag: "ritual_stopped", value: true });
+    pushMetricChange(updates, findProgressMetricId(bible), 10);
+    pushMetricChange(updates, findPressureMetricId(bible), -20);
+    pushMetricChange(updates, findStabilityMetricId(bible), 15);
+  }
+
+  if (action.method === "present_evidence" || action.intent === "stabilize_realm") {
+    pushMetricChange(updates, findProgressMetricId(bible), 7);
+    pushMetricChange(updates, findStabilityMetricId(bible), 15);
+  }
+
+  applyGenericStoryProgression(action, updates, bible, state);
+
   // Location changes
   if (action.method === "stealth_disguise" || action.method === "sneak" || action.method === "infiltrate") {
     updates.push({
@@ -280,7 +300,7 @@ function generateSuccessUpdates(
   }
 }
 
-function truthDeltaForAction(action: StructuredAction): number {
+function progressDeltaForAction(action: StructuredAction): number {
   if (["eavesdrop", "decode", "interrogate"].includes(action.action_type)) return 20;
   if (["search", "track"].includes(action.action_type)) return 15;
   if (["prioritize_clues", "cross_check_statement", "evidence_confrontation", "broaden_search"].includes(action.method)) return 15;
@@ -303,9 +323,11 @@ function rotateActionAdvantage(
   updates.push({ type: "set_flag", flag: `${prefix}momentum` });
   updates.push({ type: "set_flag", flag: `${prefix}target_${safeFlagPart(action.target)}` });
   updates.push({ type: "set_flag", flag: `${prefix}category_${getActionCategory(action.action_type)}` });
+  updates.push({ type: "set_flag", flag: `done_${action.actor_id}_${safeFlagPart(actionSignature(action))}` });
 
   if (["investigate", "search", "track", "decode", "eavesdrop", "interrogate"].includes(action.action_type)) {
     updates.push({ type: "set_flag", flag: `${prefix}category_social` });
+    updates.push({ type: "set_flag", flag: `${prefix}category_political` });
   }
   if (["talk", "persuade", "deceive", "threaten"].includes(action.action_type)) {
     updates.push({ type: "set_flag", flag: `${prefix}category_investigation` });
@@ -314,6 +336,71 @@ function rotateActionAdvantage(
 
 function safeFlagPart(value: string | undefined): string {
   return String(value || "unknown").replace(/[^a-zA-Z0-9_]/g, "_");
+}
+
+function actionSignature(action: StructuredAction): string {
+  return [action.action_type, action.target, action.method, action.intent]
+    .map((value) => String(value || "").toLowerCase())
+    .join("|");
+}
+
+function pushMetricChange(updates: StateUpdate[], metric: string | undefined, delta: number): void {
+  if (!metric || delta === 0) return;
+  updates.push({ type: "metric_change", metric, delta });
+}
+
+function applyGenericStoryProgression(
+  action: StructuredAction,
+  updates: StateUpdate[],
+  bible: StoryBible,
+  state: WorldState
+): void {
+  const category = getActionCategory(action.action_type);
+  const text = `${action.action_type} ${action.target} ${action.method} ${action.intent} ${action.raw_input || ""}`.toLowerCase();
+  const progressMetric = findProgressMetricId(bible);
+  const stabilityMetric = findStabilityMetricId(bible);
+  const pressureMetric = findPressureMetricId(bible);
+  const trustMetric = findMetricIdOptional(bible, ["trust", "信任", "关系"]);
+
+  if (category === "social" && /confess|clarify|reconcile|truth|公开|澄清|坦白|和解|说明/.test(text)) {
+    pushMetricChange(updates, progressMetric, 10);
+    pushMetricChange(updates, trustMetric, 10);
+    pushMetricChange(updates, stabilityMetric, 5);
+  }
+
+  if (category === "political" && /support|stabilize|meeting|public|appoint|command|支持|稳定|公开|会议|组织|协调/.test(text)) {
+    pushMetricChange(updates, stabilityMetric, 10);
+    pushMetricChange(updates, pressureMetric, -5);
+  }
+
+  if (category === "resource" && /prepare|secure|build|transport|buy|准备| 확보|保障|转移|补给|资源/.test(text)) {
+    pushMetricChange(updates, stabilityMetric, 6);
+    pushMetricChange(updates, pressureMetric, -4);
+  }
+
+  if (/final|ending|resolve|stop|prevent|complete|confront|expose|结局|收束|解决|阻止|完成|揭露|回应|裁决/.test(text)) {
+    pushMetricChange(updates, progressMetric, 10);
+    pushMetricsTowardBestEnding(updates, bible, state);
+  }
+}
+
+function pushMetricsTowardBestEnding(updates: StateUpdate[], bible: StoryBible, state: WorldState): void {
+  const ending = [...bible.endings].sort((a, b) => a.priority - b.priority)[0];
+  if (!ending) return;
+
+  for (const condition of ending.conditions) {
+    if (condition.type !== "metric_threshold" || !condition.metric_id) continue;
+    const current = Number(state.metrics.find((metric) => metric.metric_id === condition.metric_id)?.value ?? 0);
+    const target = Number(condition.value);
+    if (!Number.isFinite(current) || !Number.isFinite(target)) continue;
+
+    if (condition.operator === "gte" && current < target) {
+      pushMetricChange(updates, condition.metric_id, Math.min(15, Math.max(5, target - current)));
+    }
+    if (condition.operator === "lte" && current > target) {
+      pushMetricChange(updates, condition.metric_id, -Math.min(15, Math.max(5, current - target)));
+    }
+  }
 }
 
 function buildActionFact(action: StructuredAction, bible: StoryBible): string {
@@ -510,13 +597,66 @@ function generateActionId(): string {
 }
 
 function findMetricId(bible: StoryBible, candidates: string[]): string {
+  return findMetricIdOptional(bible, candidates) || candidates[0];
+}
+
+function findMetricIdOptional(bible: StoryBible, candidates: string[]): string | undefined {
   for (const candidate of candidates) {
     const metric = bible.metrics.find(
-      (item) => item.id === candidate || item.id.includes(candidate) || item.label.includes(candidate)
+      (item) => {
+        const haystack = `${item.id} ${item.label}`.toLowerCase();
+        return item.id === candidate || haystack.includes(candidate.toLowerCase());
+      }
     );
     if (metric) return metric.id;
   }
-  return candidates[0];
+  return undefined;
+}
+
+function findProgressMetricId(bible: StoryBible): string | undefined {
+  return findMetricIdOptional(bible, [
+    "truth_progress",
+    "progress",
+    "truth",
+    "clue",
+    "evidence",
+    "真相",
+    "进度",
+    "线索",
+    "证据",
+  ]);
+}
+
+function findStabilityMetricId(bible: StoryBible): string | undefined {
+  return findMetricIdOptional(bible, [
+    "kingdom_stability",
+    "situation_stability",
+    "political_stability",
+    "stability",
+    "order",
+    "safety",
+    "稳定",
+    "秩序",
+    "安全",
+  ]);
+}
+
+function findPressureMetricId(bible: StoryBible): string | undefined {
+  return findMetricIdOptional(bible, [
+    "holy_grail_influence",
+    "supernatural_pressure",
+    "faction_power",
+    "suspicion",
+    "pressure",
+    "influence",
+    "power",
+    "tension",
+    "怀疑",
+    "压力",
+    "影响",
+    "势力",
+    "紧张",
+  ]);
 }
 
 function isReflectAction(action: StructuredAction): boolean {
