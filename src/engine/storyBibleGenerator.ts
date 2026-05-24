@@ -82,13 +82,14 @@ export async function generateStoryBible(seed: StorySeed): Promise<StoryBible> {
 function parseCharacters(input: string): string[] {
   const characters = input
     .split(/[,，、\n\r\t ]+/)
-    .map((name) => name.trim())
-    .filter(Boolean);
-  return characters.length >= 2 ? characters : ["主角", "盟友", "竞争者", "见证者"];
+    .map((name) => name.trim().replace(/^(人物|角色)\s*[：:]/, ""))
+    .filter((name) => name && name.length <= 12)
+    .filter((name) => !/(公开目标|秘密目标|公开目的|秘密目的|人物性格|性格|关系|冲突|目标|秘密|背景)/.test(name));
+  return characters.length >= 2 ? characters.slice(0, 8) : ["主角", "盟友", "竞争者", "见证者"];
 }
 
 function allSeedText(seed: StorySeed): string {
-  return [seed.genre, seed.opening, seed.ending, seed.characters, seed.world_setting].join(" ");
+  return [seed.genre, seed.opening, seed.ending, seed.characters, seed.character_details, seed.world_setting].join(" ");
 }
 
 function getProfile(seed: StorySeed): GenreProfile {

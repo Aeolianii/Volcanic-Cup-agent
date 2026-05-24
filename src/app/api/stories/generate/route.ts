@@ -40,7 +40,8 @@ function normalizeStorySeed(body: Record<string, unknown>): StorySeed {
   const genreInput = stringValue(body.genre);
   const openingInput = stringValue(body.opening);
   const endingInput = stringValue(body.ending);
-  const charactersInput = stringValue(body.characters);
+  const charactersInput = cleanCharactersInput(stringValue(body.characters));
+  const characterDetailsInput = stringValue(body.character_details);
   const worldSettingInput = stringValue(body.world_setting);
   const fullText = [
     storyIdea,
@@ -48,6 +49,7 @@ function normalizeStorySeed(body: Record<string, unknown>): StorySeed {
     openingInput,
     endingInput,
     charactersInput,
+    characterDetailsInput,
     worldSettingInput,
   ].filter(Boolean).join("\n");
 
@@ -56,6 +58,7 @@ function normalizeStorySeed(body: Record<string, unknown>): StorySeed {
     opening: openingInput || storyIdea,
     ending: endingInput,
     characters: charactersInput || extractCharacters(storyIdea),
+    character_details: characterDetailsInput,
     world_setting: worldSettingInput || storyIdea,
     source_type: "manual",
   };
@@ -85,6 +88,19 @@ function inferGenre(text: string): string {
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function cleanCharactersInput(input: string): string {
+  return input
+    .split(/[\n；;]+/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/(公开目标|秘密目标|人物性格|性格|关系冲突|冲突|目标是|秘密是|公开目的|秘密目的)/.test(line))
+    .join("，")
+    .split(/[，,、/]+/)
+    .map((name) => name.trim().replace(/^(人物|角色)\s*[：:]/, ""))
+    .filter((name) => name && name.length <= 12 && !/(目标|秘密|冲突|关系|性格)/.test(name))
+    .slice(0, 8)
+    .join("，");
 }
 
 function extractCharacters(text: string): string {

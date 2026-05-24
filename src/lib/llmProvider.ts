@@ -38,6 +38,13 @@ function getConfig() {
   };
 }
 
+function getProviderOptions(baseUrl: string): Record<string, unknown> {
+  const disablesDeepSeekThinking =
+    /deepseek/i.test(baseUrl) && process.env.DEEPSEEK_THINKING !== "enabled";
+
+  return disablesDeepSeekThinking ? { thinking: { type: "disabled" } } : {};
+}
+
 type LLMResult<T> = {
   ok: boolean;
   value: T;
@@ -59,6 +66,7 @@ async function chatJSONWithStatus<T>(messages: ChatMessage[], fallback: T, maxTo
   }
 
   try {
+    const providerOptions = getProviderOptions(baseUrl);
     const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
@@ -72,6 +80,7 @@ async function chatJSONWithStatus<T>(messages: ChatMessage[], fallback: T, maxTo
         stream: false,
         temperature: 0.7,
         response_format: { type: "json_object" },
+        ...providerOptions,
       }),
     });
 
@@ -128,13 +137,67 @@ function parseJSONWithStatus<T>(content: string, fallback: T): { ok: boolean; va
 
   try {
     return { ok: true, value: JSON.parse(jsonText) as T };
-  } catch (error) {
+  } catch {
+    const repaired = tryRepairObjectJSON<T>(raw, fallback);
+    if (repaired) {
+      return {
+        ok: false,
+        value: repaired,
+        reason: "大模型返回的 JSON 格式不完整，已自动提取可用字段。",
+      };
+    }
+
     return {
       ok: false,
       value: fallback,
-      reason: `大模型返回内容不是合法 JSON：${String(error)}；原始内容片段：${raw.slice(0, 240)}`,
+      reason: "大模型返回的 JSON 格式不完整，已改用本地兜底内容。",
     };
   }
+}
+
+function tryRepairObjectJSON<T>(raw: string, fallback: T): T | null {
+  if (!fallback || typeof fallback !== "object") return null;
+  const output: Record<string, unknown> = { ...(fallback as Record<string, unknown>) };
+  let recovered = 0;
+
+  for (const key of Object.keys(output)) {
+    const value = extractJSONLikeStringField(raw, key);
+    if (value && value.length >= 2) {
+      output[key] = value.trim();
+      recovered += 1;
+    }
+  }
+
+  return recovered >= 2 ? (output as T) : null;
+}
+
+function extractJSONLikeStringField(raw: string, key: string): string | null {
+  const marker = `"${key}"`;
+  const keyIndex = raw.indexOf(marker);
+  if (keyIndex < 0) return null;
+  const colonIndex = raw.indexOf(":", keyIndex + marker.length);
+  if (colonIndex < 0) return null;
+  const firstQuote = raw.indexOf("\"", colonIndex + 1);
+  if (firstQuote < 0) return null;
+
+  let result = "";
+  let escaped = false;
+  for (let index = firstQuote + 1; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (escaped) {
+      result += char;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === "\"") return result;
+    result += char;
+  }
+
+  return result || null;
 }
 
 function parseJSON<T>(content: string, fallback: T): T {
@@ -167,13 +230,12 @@ export async function generateRandomStorySeedWithLLM(): Promise<LLMResult<{
     [
       systemJSON([
         "你是互动剧本和多人跑团式叙事游戏设计师。",
-        "请随机生成一个适合多人互动、包含秘密、冲突、调查或关系博弈的原创故事种子。",
-        "故事必须能直接填入创建故事页面的 6 个输入框。",
-        "必须返回 JSON，字段为：genre, opening, ending, characters, character_details, world_setting, inspiration_title。",
-        "characters 要列出 3-5 个主要可玩人物。",
-        "character_details 要包含每个人的性格、公开目标、秘密目标、人物间关系和冲突。",
-        "opening 要有明确开局事件；ending 要给出可达成的结局方向；world_setting 要说明地点、规则、氛围和限制。",
-        "不要使用内部 ID，不要输出 Markdown。",
+        "请随机生成一个原创中文互动故事种子，适合多人扮演、调查、秘密和关系冲突。",
+        "必须只返回一个 JSON 对象，不要 Markdown，不要额外解释。",
+        "字段必须是字符串：genre, opening, ending, characters, character_details, world_setting, inspiration_title。",
+        "长度限制：genre 20字内；inspiration_title 12字内；opening 160字内；ending 120字内；characters 只写3-5个人名，用顿号分隔；character_details 360字内；world_setting 160字内。",
+        "character_details 必须写人物性格、公开目标、秘密目标、人物关系和冲突，但不要把这些内容写进 characters。",
+        "不要使用内部 ID。所有换行必须写成 \\n，不能在 JSON 字符串里直接换行。",
       ].join("\n")),
       {
         role: "user",
@@ -184,7 +246,7 @@ export async function generateRandomStorySeedWithLLM(): Promise<LLMResult<{
       },
     ],
     fallback,
-    1800
+    1100
   );
 }
 

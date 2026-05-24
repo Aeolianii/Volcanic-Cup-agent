@@ -10,6 +10,7 @@ export interface StorySeed {
   opening: string;
   ending: string;
   characters: string;
+  character_details?: string;
   world_setting: string;
   source_type: "manual" | "ai_generated";
 }

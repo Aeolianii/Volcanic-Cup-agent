@@ -63,8 +63,10 @@ function GeneratePageContent() {
       }
 
       fillStoryFields(data.story || {});
-      if (data.provider_status?.ok === false) {
-        setEnhanceMessage(`已使用本地随机故事。大模型未成功调用：${data.provider_status.reason || "未知原因"}`);
+      if (data.provider_status?.provider === "llm_repaired") {
+        setEnhanceMessage("大模型返回格式不完整，系统已自动提取可用内容并填充到文本框。");
+      } else if (data.provider_status?.ok === false) {
+        setEnhanceMessage(`已使用本地随机故事。原因：${data.provider_status.reason || "大模型返回格式不完整"}`);
       } else {
         setEnhanceMessage(`大模型已生成随机故事${data.story?.inspiration_title ? `《${data.story.inspiration_title}》` : ""}，并填充到文本框。`);
       }
@@ -91,20 +93,16 @@ function GeneratePageContent() {
         return;
       }
 
-      const combinedCharacters = [
-        characters ? `人物：${characters}` : "",
-        characterDetails ? `人物性格和人物间关系：${characterDetails}` : "",
-      ].filter(Boolean).join("\n");
-
       const res = await fetch("/api/stories/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          story_idea: [genre, opening, ending, combinedCharacters, worldSetting].filter(Boolean).join("\n"),
+          story_idea: [genre, opening, ending, characters, characterDetails, worldSetting].filter(Boolean).join("\n"),
           genre,
           opening,
           ending,
-          characters: combinedCharacters,
+          characters,
+          character_details: characterDetails,
           world_setting: worldSetting,
         }),
       });
