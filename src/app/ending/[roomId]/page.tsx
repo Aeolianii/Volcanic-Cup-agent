@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 interface EndingData {
   ending: {
@@ -96,7 +96,7 @@ export default function EndingPage() {
           setData(result);
         }
       } catch {
-        // 保持结算页可用，失败时只结束加载状态
+        // Keep the ending page usable even if recap fetch fails.
       } finally {
         setLoading(false);
       }
@@ -107,195 +107,166 @@ export default function EndingPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-parchant-500 text-lg">计算结局中...</p>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <p className="text-lg text-parchment-500">计算结局中...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="text-center mb-10">
-        <h1 className="font-fantasy text-4xl text-amber-400 mb-2">
-          {data?.ending?.title || "故事结束"}
-        </h1>
-        <p className="text-parchant-500 text-lg">
+    <div className="mx-auto max-w-5xl space-y-8">
+      <header className="text-center">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-300/70">ending recap</p>
+        <h1 className="section-title mb-3 text-4xl">{data?.ending?.title || "故事结束"}</h1>
+        <p className="mx-auto max-w-2xl text-lg leading-8 text-parchment-400">
           {data?.ending?.description || "命运之线已经编织完毕..."}
         </p>
-      </div>
+      </header>
 
       {data?.ending_narrative && (
-        <div className="panel mb-8">
-          <div className="prose prose-invert max-w-none text-parchant-200 leading-relaxed whitespace-pre-wrap">
+        <section className="panel">
+          <div className="whitespace-pre-wrap text-sm leading-7 text-parchment-200 md:text-base">
             {sanitizeSettlementText(data.ending_narrative)}
           </div>
-        </div>
+        </section>
       )}
 
       {data?.ending_recap && (
-        <div className="space-y-8 mb-8">
+        <section className="space-y-6">
           {data.ending_recap.mvp && (
-            <div className="panel border-amber-500/60 bg-amber-950/20">
-              <p className="text-xs uppercase tracking-wider text-amber-500 mb-2">MVP</p>
-              <h3 className="font-fantasy text-2xl text-amber-300 mb-2">
+            <div className="panel border-amber-500/60 bg-amber-500/10">
+              <p className="mb-2 text-xs uppercase tracking-[0.2em] text-amber-300">MVP</p>
+              <h2 className="section-title mb-2 text-2xl">
                 {sanitizeSettlementText(data.ending_recap.mvp.display_name)}
-              </h3>
-              <p className="text-sm text-parchant-300">
-                贡献分：{data.ending_recap.mvp.score}
-              </p>
-              <p className="text-parchant-200 mt-3 leading-relaxed">
+              </h2>
+              <p className="text-sm text-parchment-300">贡献分：{data.ending_recap.mvp.score}</p>
+              <p className="mt-3 leading-7 text-parchment-200">
                 {sanitizeSettlementText(data.ending_recap.mvp.gm_comment)}
               </p>
             </div>
           )}
 
           {data.ending_recap.truth.length > 0 && (
-            <div className="panel">
-              <h3 className="font-fantasy text-amber-400 mb-4">事件真相公开</h3>
-              <div className="space-y-3">
-                {data.ending_recap.truth.map((item, index) => (
-                  <div key={`${item.title}_${index}`} className="border-l-2 border-amber-500/50 pl-3">
-                    <p className="text-parchant-100 font-medium">{sanitizeSettlementText(item.title)}</p>
-                    <p className="text-sm text-parchant-400 leading-relaxed whitespace-pre-wrap">
-                      {sanitizeSettlementText(item.content)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <RecapSection title="事件真相公开">
+              {data.ending_recap.truth.map((item, index) => (
+                <div key={`${item.title}_${index}`} className="border-l-2 border-amber-500/50 pl-3">
+                  <p className="font-medium text-parchment-100">{sanitizeSettlementText(item.title)}</p>
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-parchment-400">
+                    {sanitizeSettlementText(item.content)}
+                  </p>
+                </div>
+              ))}
+            </RecapSection>
           )}
 
           {data.ending_recap.chronicle.length > 0 && (
-            <div className="panel">
-              <h3 className="font-fantasy text-amber-400 mb-4">事件编年史</h3>
-              <div className="space-y-3">
-                {data.ending_recap.chronicle.map((item, index) => (
-                  <div key={`${item.title}_${index}`} className="p-3 rounded border border-midnight-600 bg-midnight-700/30">
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className="text-xs text-amber-400">第 {item.turn} 回合</span>
-                      <span className="text-parchant-100 font-medium">{sanitizeSettlementText(item.title)}</span>
-                    </div>
-                    <p className="text-sm text-parchant-400 leading-relaxed">{sanitizeSettlementText(item.description)}</p>
+            <RecapSection title="事件编年史">
+              {data.ending_recap.chronicle.map((item, index) => (
+                <div key={`${item.title}_${index}`} className="rounded border border-midnight-500/70 bg-midnight-900/30 p-3">
+                  <div className="mb-1 flex flex-wrap items-center gap-3">
+                    <span className="text-xs text-amber-300">第 {item.turn} 回合</span>
+                    <span className="font-medium text-parchment-100">{sanitizeSettlementText(item.title)}</span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <p className="text-sm leading-7 text-parchment-400">{sanitizeSettlementText(item.description)}</p>
+                </div>
+              ))}
+            </RecapSection>
           )}
 
           {data.ending_recap.player_actions.length > 0 && (
-            <div className="panel">
-              <h3 className="font-fantasy text-amber-400 mb-4">所有玩家操作公开</h3>
-              <div className="space-y-3">
-                {data.ending_recap.player_actions.map((action) => (
-                  <div key={action.id} className="p-3 rounded border border-midnight-600 bg-midnight-700/30">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                      <span className="text-parchant-100 font-medium">
-                        第 {action.turn} 回合 · {sanitizeSettlementText(action.actor_display_name)}
-                      </span>
-                      <span className={action.success ? "text-xs text-emerald-300" : "text-xs text-rose-300"}>
-                        {action.success ? "成功" : "失败"} · {sanitizeSettlementText(action.action_label)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-parchant-400">
-                      目标：{sanitizeSettlementText(action.target_display_name || "未知")}；意图：{sanitizeSettlementText(action.intent)}
-                    </p>
-                    <p className="text-sm text-parchant-300 mt-1">{sanitizeSettlementText(action.public_result)}</p>
-                    {action.raw_input && (
-                      <p className="text-xs text-parchant-500 mt-1">原始输入：{sanitizeSettlementText(action.raw_input)}</p>
-                    )}
+            <RecapSection title="所有玩家操作公开">
+              {data.ending_recap.player_actions.map((action) => (
+                <div key={action.id} className="rounded border border-midnight-500/70 bg-midnight-900/30 p-3">
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium text-parchment-100">
+                      第 {action.turn} 回合 · {sanitizeSettlementText(action.actor_display_name)}
+                    </span>
+                    <span className={action.success ? "text-xs text-emerald-300" : "text-xs text-rose-300"}>
+                      {action.success ? "成功" : "失败"} · {sanitizeSettlementText(action.action_label)}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <p className="text-sm text-parchment-400">
+                    目标：{sanitizeSettlementText(action.target_display_name || "未知")}；意图：{sanitizeSettlementText(action.intent)}
+                  </p>
+                  <p className="mt-1 text-sm text-parchment-300">{sanitizeSettlementText(action.public_result)}</p>
+                  {action.raw_input && (
+                    <p className="mt-1 text-xs text-parchment-500">原始输入：{sanitizeSettlementText(action.raw_input)}</p>
+                  )}
+                </div>
+              ))}
+            </RecapSection>
           )}
 
           {data.ending_recap.gm_reviews.length > 0 && (
-            <div className="panel">
-              <h3 className="font-fantasy text-amber-400 mb-4">GM 玩家点评</h3>
-              <div className="space-y-3">
-                {data.ending_recap.gm_reviews.map((review) => (
-                  <div key={review.player_id} className="p-3 rounded border border-midnight-600 bg-midnight-700/30">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <span className="text-parchant-100 font-medium">{sanitizeSettlementText(review.display_name)}</span>
-                      <span className="text-xs text-amber-400">贡献分 {review.score}</span>
-                    </div>
-                    <p className="text-sm text-parchant-300 leading-relaxed">{sanitizeSettlementText(review.gm_comment)}</p>
+            <RecapSection title="GM 玩家点评">
+              {data.ending_recap.gm_reviews.map((review) => (
+                <div key={review.player_id} className="rounded border border-midnight-500/70 bg-midnight-900/30 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <span className="font-medium text-parchment-100">{sanitizeSettlementText(review.display_name)}</span>
+                    <span className="text-xs text-amber-300">贡献分 {review.score}</span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <p className="text-sm leading-7 text-parchment-300">{sanitizeSettlementText(review.gm_comment)}</p>
+                </div>
+              ))}
+            </RecapSection>
           )}
-        </div>
+        </section>
       )}
 
       {data?.victory_settlement && data.victory_settlement.length > 0 && (
-        <div className="panel mb-8">
-          <h3 className="font-fantasy text-amber-400 mb-4">胜利结算</h3>
-          <div className="space-y-3">
-            {data.victory_settlement.map((item) => (
-              <div key={item.player_id} className="p-3 rounded border border-midnight-600 bg-midnight-700/30">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <span className="text-parchant-200 font-medium">{settlementDisplayName(item)}</span>
-                  <span className="text-xs text-parchant-500">状态：{lifeStatusLabel(item.life_status)}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className={item.faction_victory ? "text-emerald-300" : "text-parchant-500"}>
-                    阵营胜利：{item.faction_victory ? "是" : "否"}
-                  </div>
-                  <div className={item.personal_victory ? "text-emerald-300" : "text-parchant-500"}>
-                    个人胜利：{item.personal_victory ? "是" : "否"}
-                  </div>
-                </div>
-                {item.notes.length > 0 && (
-                  <p className="text-xs text-parchant-500 mt-2">{item.notes.map(sanitizeSettlementText).join("；")}</p>
-                )}
+        <RecapSection title="胜利结算">
+          {data.victory_settlement.map((item) => (
+            <div key={item.player_id} className="rounded border border-midnight-500/70 bg-midnight-900/30 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="font-medium text-parchment-100">{settlementDisplayName(item)}</span>
+                <span className="text-xs text-parchment-500">状态：{lifeStatusLabel(item.life_status)}</span>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className={item.faction_victory ? "text-emerald-300" : "text-parchment-500"}>
+                  阵营胜利：{item.faction_victory ? "是" : "否"}
+                </div>
+                <div className={item.personal_victory ? "text-emerald-300" : "text-parchment-500"}>
+                  个人胜利：{item.personal_victory ? "是" : "否"}
+                </div>
+              </div>
+              {item.notes.length > 0 && (
+                <p className="mt-2 text-xs text-parchment-500">{item.notes.map(sanitizeSettlementText).join("；")}</p>
+              )}
+            </div>
+          ))}
+        </RecapSection>
       )}
 
       {data?.all_endings_status && data.all_endings_status.length > 0 && (
-        <div className="panel mb-8">
-          <h3 className="font-fantasy text-amber-400 mb-4">所有可能结局</h3>
-          <div className="space-y-3">
-            {data.all_endings_status.map((es) => (
-              <div
-                key={es.ending_id}
-                className={`p-3 rounded border ${
-                  es.ending_id === endingId
-                    ? "border-amber-500/70 bg-amber-900/20"
-                    : "border-midnight-600"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`font-medium ${
-                    es.ending_id === endingId ? "text-amber-300" : "text-parchant-300"
-                  }`}>
-                    {sanitizeSettlementText(es.title)}
-                    {es.ending_id === endingId && (
-                      <span className="text-xs text-amber-500 ml-2">← 达成</span>
-                    )}
-                  </span>
-                  <span className="text-xs text-parchant-500">
-                    {es.conditions_met}/{es.total_conditions} 条件
-                  </span>
-                </div>
-                <div className="w-full bg-midnight-700 rounded-full h-2">
-                  <div
-                    className={`h-2 rounded-full transition-all ${
-                      es.ending_id === endingId ? "bg-amber-500" : "bg-midnight-500"
-                    }`}
-                    style={{ width: `${es.progress}%` }}
-                  />
-                </div>
+        <RecapSection title="所有可能结局">
+          {data.all_endings_status.map((status) => (
+            <div
+              key={status.ending_id}
+              className={`rounded border p-3 ${
+                status.ending_id === endingId ? "border-amber-500/70 bg-amber-500/10" : "border-midnight-500/70 bg-midnight-900/20"
+              }`}
+            >
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className={`font-medium ${status.ending_id === endingId ? "text-amber-200" : "text-parchment-300"}`}>
+                  {sanitizeSettlementText(status.title)}
+                  {status.ending_id === endingId && <span className="ml-2 text-xs text-amber-300">已达成</span>}
+                </span>
+                <span className="text-xs text-parchment-500">
+                  {status.conditions_met}/{status.total_conditions} 条件
+                </span>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="h-2 w-full rounded-full bg-midnight-700">
+                <div
+                  className={`h-2 rounded-full transition-all ${status.ending_id === endingId ? "bg-amber-500" : "bg-midnight-500"}`}
+                  style={{ width: `${status.progress}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </RecapSection>
       )}
 
-      <div className="flex gap-4 justify-center">
+      <div className="flex justify-center gap-4">
         <button onClick={() => router.push("/")} className="btn-primary px-8">
           返回首页
         </button>
@@ -304,6 +275,15 @@ export default function EndingPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+function RecapSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="panel">
+      <h2 className="section-title mb-4 text-xl">{title}</h2>
+      <div className="space-y-3">{children}</div>
+    </section>
   );
 }
 
@@ -365,12 +345,10 @@ function sanitizeSettlementText(text: string | undefined): string {
     output = output.replace(pattern, label);
   }
 
-  output = output
+  return output
     .replace(/\bnpc_([a-z0-9_]+)\b/gi, "相关人物")
     .replace(/\bevt_([a-z0-9_]+)\b/gi, "相关事件")
     .replace(/\bevent_([a-z0-9_]+)\b/gi, "相关事件")
     .replace(/\bending_([a-z0-9_]+)\b/gi, "相关结局")
     .replace(/\b[a-z]+(?:_[a-z0-9]+){2,}\b/gi, "相关条目");
-
-  return output;
 }

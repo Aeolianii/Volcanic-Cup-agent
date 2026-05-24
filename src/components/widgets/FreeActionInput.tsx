@@ -11,7 +11,7 @@ interface FreeActionInputProps {
 export function FreeActionInput({
   onSubmitAction,
   disabled = false,
-  placeholder = "输入你的行动，例如：我要假扮修士潜入地下室，偷听主教和大法师的谈话...",
+  placeholder = "输入你的行动，例如：我要伪装成修士潜入地下室，偷听主教和大法师的谈话...",
 }: FreeActionInputProps) {
   const [input, setInput] = useState("");
 
@@ -30,13 +30,13 @@ export function FreeActionInput({
 
   return (
     <div className="panel">
-      <div className="flex items-center gap-2 mb-2">
-        <h3 className="font-fantasy text-amber-400 text-sm">自由行动</h3>
-        <span className="text-[10px] text-parchment-500 bg-midnight-700 px-1.5 py-0.5 rounded">
-          按 Enter 提交
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="section-title text-base">自由行动</h3>
+        <span className="rounded bg-midnight-900/50 px-2 py-1 text-[10px] text-parchment-500">
+          Enter 提交
         </span>
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <input
           type="text"
           value={input}
@@ -44,17 +44,17 @@ export function FreeActionInput({
           onKeyDown={handleKeyDown}
           placeholder={disabled ? "行动处理中，请稍候..." : placeholder}
           disabled={disabled}
-          className="input-field text-sm flex-1"
+          className="input-field flex-1 text-sm"
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !input.trim()}
-          className="btn-primary text-sm px-4 whitespace-nowrap disabled:opacity-60 disabled:cursor-wait"
+          className="btn-primary whitespace-nowrap px-4 text-sm disabled:cursor-wait disabled:opacity-60"
         >
           {disabled ? "处理中" : "执行行动"}
         </button>
       </div>
-      <p className="text-[10px] text-parchment-600 mt-1">
+      <p className="mt-2 text-[11px] leading-5 text-parchment-600">
         描述你想做什么，系统会自动解析为结构化行动。
       </p>
     </div>
