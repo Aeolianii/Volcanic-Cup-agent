@@ -256,12 +256,6 @@ export default function RoomPage() {
           // Refresh view
           await refreshPlayerView(nextSuggestedActions);
 
-          // Auto NPC turn
-          try {
-            await fetch(`/api/rooms/${roomId}/npc-turn`, { method: "POST" });
-          } catch {
-            // NPC turn is optional
-          }
         } else {
           replaceSuggestedActions(previousActions);
           setActionFeedback("行动失败：" + (data.error || "未知错误"));
@@ -557,14 +551,54 @@ function normalizeSuggestedActions(actions: unknown): SuggestedAction[] {
     })
     .map((action, index) => ({
       id: action.id || `sa_next_${Date.now()}_${index}`,
-      label: action.label,
+      label: sanitizeSuggestedActionText(action.label),
       action_type: action.action_type,
-      target: action.target || "current_location",
+      target: sanitizeSuggestedActionTarget(action.target || "current_location"),
       method: action.method || "direct",
       intent: action.intent || action.action_type,
       risk_level: action.risk_level || "medium",
-      context: action.context || "",
+      context: sanitizeSuggestedActionText(action.context || ""),
     }));
+}
+
+function sanitizeSuggestedActionTarget(target: unknown): string {
+  const raw = String(target || "current_location");
+  if (/^(current_location|connected_location|current_event|self_goal|public_situation|all_players|unknown)$/.test(raw)) {
+    return raw;
+  }
+  return raw;
+}
+
+function sanitizeSuggestedActionText(text: unknown): string {
+  let output = String(text || "");
+  const replacements: Array<[RegExp, string]> = [
+    [/\bcurrent_location\b/g, "当前位置"],
+    [/\bconnected_location\b/g, "相关地点"],
+    [/\bcurrent_event\b/g, "当前事件"],
+    [/\bself_goal\b/g, "自己的目标"],
+    [/\bpublic_situation\b/g, "公开局势"],
+    [/\ball_players\b/g, "所有玩家"],
+    [/\binformed_npc\b/g, "知情者"],
+    [/\bunknown\b/g, "当前目标"],
+    [/\btruth_progress\b/g, "真相进度"],
+    [/\bsituation_stability\b/g, "局势稳定度"],
+    [/\bfaction_power\b/g, "势力值"],
+    [/\btrust\b/g, "信任度"],
+    [/\bsuspicion\b/g, "怀疑度"],
+  ];
+
+  for (const [pattern, label] of replacements) {
+    output = output.replace(pattern, label);
+  }
+
+  return output
+    .replace(/\brole_(\d+)\b/gi, "角色 $1")
+    .replace(/\bnpc_([a-z0-9_]+)\b/gi, "相关人物")
+    .replace(/\bevt_([a-z0-9_]+)\b/gi, "相关事件")
+    .replace(/\bevent_([a-z0-9_]+)\b/gi, "相关事件")
+    .replace(/\blocation_([a-z0-9_]+)\b/gi, "相关地点")
+    .replace(/\bplayer_([a-z0-9_]+)\b/gi, "玩家")
+    .replace(/\b[a-z]+(?:_[a-z0-9]+){2,}\b/gi, "相关条目");
 }
 
 // Role selector sub-component
