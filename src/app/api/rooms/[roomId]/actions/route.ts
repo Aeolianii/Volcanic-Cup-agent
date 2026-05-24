@@ -7,15 +7,16 @@ import { runDueNPCTurns } from "@/engine/npcTurnSystem";
 import { checkEventTriggers } from "@/engine/eventTriggerSystem";
 import { checkEndings } from "@/engine/endingJudge";
 import { generateGMNarrative } from "@/engine/aiGM";
+import { runGMBalancerAgent } from "@/engine/gmBalancerAgent";
 import { checkChapterTransition } from "@/engine/storyController";
 import { getAIProvider } from "@/lib/aiProvider";
 import type { ActionType, EventEffect, ParsedAction, StateUpdate, StructuredAction } from "@/types";
 
 const VALID_ACTION_TYPES: ActionType[] = [
   "talk", "persuade", "threaten", "deceive", "ally", "betray", "confess",
-  "investigate", "search", "track", "eavesdrop", "interrogate", "decode",
+  "investigate", "search", "track", "eavesdrop", "interrogate", "decode", "spy", "divination", "gather_intelligence",
   "command", "summon_meeting", "gain_support", "coup", "impeach", "appoint",
-  "attack", "assassinate", "duel", "ambush", "defend",
+  "attack", "assassinate", "duel", "ambush", "defend", "execute", "sacrifice",
   "buy", "trade", "steal", "transport", "build",
 ];
 
@@ -70,6 +71,13 @@ export async function POST(
         { status: 404 }
       );
     }
+    const actorState = worldState.character_states[body.player_id];
+    if (actorState?.ghost_mode) {
+      return NextResponse.json(
+        { success: false, error: "幽灵模式只能旁观，不能执行行动。" },
+        { status: 403 }
+      );
+    }
 
     // Parse action based on source
     let structuredAction: StructuredAction;
@@ -94,6 +102,7 @@ export async function POST(
             current_location: body.current_location || "",
             known_facts: body.known_facts || [],
             active_events: worldState.events.filter((e) => e.triggered).map((e) => e.event_id),
+            runtime_modules: bible.runtime_modules,
           }),
           1500
         );
@@ -113,6 +122,20 @@ export async function POST(
     worldState = decrementActiveModifiers(worldState);
     const npcTurn = await runDueNPCTurns(worldState, bible, getAIProvider());
     worldState = npcTurn.worldState;
+    const balanceResult = runGMBalancerAgent(room.players, worldState, bible);
+    if (balanceResult.updates.length > 0) {
+      worldState = applyUpdates(worldState, balanceResult.updates);
+      worldState.balance_state = {
+        ...worldState.balance_state,
+        player_advantage_scores: balanceResult.scores,
+        last_balance_turn: worldState.turn,
+      };
+    } else {
+      worldState.balance_state = {
+        ...worldState.balance_state,
+        player_advantage_scores: balanceResult.scores,
+      };
+    }
     roomManager.updateWorldState(roomId, worldState);
 
     // Check event triggers
@@ -185,6 +208,9 @@ export async function POST(
       sender_name: "GM",
       content: gmNarrative.narration,
       timestamp: new Date().toISOString(),
+      channel_id: "public",
+      channel_type: "public" as const,
+      highlighted: true,
     };
 
     return NextResponse.json({

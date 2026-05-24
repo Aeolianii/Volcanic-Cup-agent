@@ -11,6 +11,22 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   is_action_hint?: boolean;
+  channel_id: string;
+  channel_type: ChatChannelType;
+  recipient_ids?: string[];
+  highlighted?: boolean;
+}
+
+export type ChatChannelType = "public" | "faction" | "private" | "system";
+
+export interface ChatChannel {
+  id: string;
+  type: ChatChannelType;
+  label: string;
+  member_ids: string[];
+  pinned: boolean;
+  unread_count: number;
+  unlocked: boolean;
 }
 
 export interface ChatHint {

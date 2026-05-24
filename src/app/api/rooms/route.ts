@@ -18,6 +18,13 @@ export async function POST(request: NextRequest) {
       roomManager.setStoryBible(DEMO_STORY_BIBLE);
     }
 
+    if (!roomManager.getStoryBible(story_bible_id)) {
+      return NextResponse.json(
+        { success: false, error: "故事尚未生成或校验未通过，不能创建房间。" },
+        { status: 400 }
+      );
+    }
+
     const room = roomManager.createRoom(story_bible_id, player_id, player_name);
 
     return NextResponse.json({ success: true, room });

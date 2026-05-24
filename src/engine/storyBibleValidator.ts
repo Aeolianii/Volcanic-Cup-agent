@@ -82,6 +82,26 @@ export function validateStoryBible(bible: StoryBible): ValidationResult {
     }
   }
 
+  if (!bible.runtime_modules) {
+    warnings.push({
+      field: "runtime_modules",
+      message: "缺少运行模块配置；导入故事会在入库前自动补全，但建议生成 Story Bible 时明确包含。",
+    });
+  } else {
+    if (bible.runtime_modules.enabled.character_death && !bible.runtime_modules.enabled.ghost_mode) {
+      warnings.push({
+        field: "runtime_modules.enabled.ghost_mode",
+        message: "启用角色死亡时建议同时启用幽灵旁观。",
+      });
+    }
+    if (!bible.runtime_modules.enabled.character_death && bible.runtime_modules.consequence_mode === "lethal") {
+      errors.push({
+        field: "runtime_modules.consequence_mode",
+        message: "未启用角色死亡时 consequence_mode 不应为 lethal。",
+      });
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors,

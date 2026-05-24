@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { roomManager } from "@/lib/roomManager";
-import { checkEndings } from "@/engine/endingJudge";
+import { checkEndings, evaluateVictorySettlement } from "@/engine/endingJudge";
 import { getAIProvider } from "@/lib/aiProvider";
 
 export async function POST(
@@ -48,6 +48,12 @@ export async function POST(
       success: true,
       ending: endingResult.reached ? endingResult.ending : null,
       all_endings_status: endingResult.all_endings_status,
+      victory_settlement: evaluateVictorySettlement(
+        room.players,
+        worldState,
+        bible,
+        endingResult.reached ? endingResult.ending : null
+      ),
       ending_narrative: endingNarrative,
     });
   } catch (error) {

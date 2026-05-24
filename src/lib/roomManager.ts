@@ -1,5 +1,6 @@
 import type { Room, Player, RoomStatus, WorldState, StoryBible } from "@/types";
 import { createWorldState } from "@/engine/worldStateEngine";
+import { enrichStoryBibleForSimulation } from "@/engine/storyAdaptationLayer";
 
 /**
  * In-memory room manager (MVP — replace with DB in production)
@@ -124,6 +125,13 @@ class RoomManager {
         known_locations: [player.role.starting_location],
         known_events: [],
         evidence: [],
+        discovered_clues: [],
+        private_chat_unlocked_with: [],
+      };
+      ws.character_states[player.player_id] = {
+        character_id: player.player_id,
+        status: "alive",
+        ghost_mode: false,
       };
     }
     this.worldStates.set(room.world_state_id, ws);
@@ -151,7 +159,7 @@ class RoomManager {
   }
 
   setStoryBible(bible: StoryBible): void {
-    this.storyBibles.set(bible.id, bible);
+    this.storyBibles.set(bible.id, enrichStoryBibleForSimulation(bible));
   }
 
   getStoryBible(id: string): StoryBible | undefined {

@@ -5,6 +5,7 @@ import { extractFeatures } from "./featureExtractor";
 import { selectRulePacks } from "./rulePackSelector";
 import { generateMetrics } from "./metricGenerator";
 import { generateUIConfig } from "./uiConfigGenerator";
+import { enrichStoryBibleForSimulation } from "./storyAdaptationLayer";
 
 type GenreProfile =
   | "campus"
@@ -49,6 +50,11 @@ export async function generateStoryBible(seed: StorySeed): Promise<StoryBible> {
     })),
     npcs: generateNPCs(seed),
     factions: buildFactions(seed, characters),
+    character_models: [],
+    faction_models: [],
+    relationship_graph: { edges: [] },
+    knowledge_graph: { facts: [] },
+    victory_conditions: [],
     chapters: adapted.additions.chapters.map((chapter, index) => ({
       id: `chapter_${index + 1}`,
       title: chapter.title,
@@ -70,7 +76,7 @@ export async function generateStoryBible(seed: StorySeed): Promise<StoryBible> {
   bible.metrics = generateMetrics(bible);
   bible.ui_config = generateUIConfig(bible);
 
-  return bible;
+  return enrichStoryBibleForSimulation(bible, seed);
 }
 
 function parseCharacters(input: string): string[] {
@@ -236,7 +242,7 @@ function buildFactions(seed: StorySeed, characters: string[]): Faction[] {
         name: "学生会与班级秩序",
         description: `希望把“${shortText(opening || seed.world_setting || "当前风波", 24)}”控制在校园规则内解决。`,
         goals: ["平息流言", "维持竞选或班级秩序", "保护校方与学生会声誉"],
-        members: pickMembers(roleIdByName, ["班长", "学生会"]),
+        members: pickMembers(roleIdByName, ["班长", "学生会", "会长"]),
         relationships: { faction_close_friends: 5, faction_rumor_circle: -15 },
       },
       {
@@ -244,7 +250,7 @@ function buildFactions(seed: StorySeed, characters: string[]): Faction[] {
         name: "亲近朋友",
         description: "更关心当事人的真实感受，愿意为了关系修复挑战表面秩序。",
         goals: ["确认真实心意", "保护被误解的人", "找到流言源头"],
-        members: pickMembers(roleIdByName, ["闺蜜", "好友", "朋友", "转校"]),
+        members: pickMembers(roleIdByName, ["闺蜜", "好友", "朋友", "转校", "转学", "青梅", "竹马", "学姐", "学长"]),
         relationships: { faction_student_council: 5, faction_rumor_circle: -20 },
       },
       {
@@ -252,7 +258,7 @@ function buildFactions(seed: StorySeed, characters: string[]): Faction[] {
         name: "流言圈",
         description: "由围观者、竞争者和匿名传播者构成，会根据局势放大误会。",
         goals: ["制造话题", "影响竞选或关系走向", "隐藏真正爆料者"],
-        members: pickMembers(roleIdByName, ["校草", "校花", "竞争"]),
+        members: pickMembers(roleIdByName, ["校草", "校花", "竞争", "匿名", "爆料", "流言"]),
         relationships: { faction_student_council: -15, faction_close_friends: -20 },
       },
     ];

@@ -32,6 +32,12 @@ export function buildNPCLocalView(
   if (!npcKnowledge) {
     const runtime = getRuntime(npc, state);
     return {
+      self_information: [npc.public_identity, npc.goal, npc.secret_goal].filter(Boolean),
+      public_information: [...state.knowledge_state.public_knowledge],
+      discovered_information: [
+        ...runtime.known_facts.map((fact) => fact.content),
+        ...runtime.suspected_facts.map((fact) => `疑似：${fact.content}`),
+      ],
       known_facts: [...npc.initial_knowledge],
       known_events: [],
       known_players: [],
@@ -44,6 +50,7 @@ export function buildNPCLocalView(
       runtime,
     };
   }
+  const runtime = getRuntime(npc, state);
 
   // Only include PUBLIC events
   const publicEvents = state.events
@@ -81,9 +88,16 @@ export function buildNPCLocalView(
     known_facts: [
       ...npc.initial_knowledge,
       ...npcKnowledge.known_facts,
-      ...getRuntime(npc, state).known_facts.map((fact) => fact.content),
-      ...getRuntime(npc, state).suspected_facts.map((fact) => `疑似：${fact.content}`),
+      ...runtime.known_facts.map((fact) => fact.content),
+      ...runtime.suspected_facts.map((fact) => `疑似：${fact.content}`),
       ...state.knowledge_state.public_knowledge,
+    ],
+    self_information: [npc.public_identity, npc.goal, npc.secret_goal].filter(Boolean),
+    public_information: [...state.knowledge_state.public_knowledge],
+    discovered_information: [
+      ...npcKnowledge.discovered_clues,
+      ...runtime.known_facts.map((fact) => fact.content),
+      ...runtime.suspected_facts.map((fact) => `疑似：${fact.content}`),
     ],
     known_events: [
       ...npcKnowledge.known_events,
@@ -97,9 +111,9 @@ export function buildNPCLocalView(
     ].slice(-8),
     current_public_events: publicEvents,
     visible_metrics: visibleMetrics(state, _bible),
-    observations: buildObservations(getRuntime(npc, state)),
-    threat_assessment: buildThreatAssessment(getRuntime(npc, state)),
-    runtime: getRuntime(npc, state),
+    observations: buildObservations(runtime),
+    threat_assessment: buildThreatAssessment(runtime),
+    runtime,
   };
 }
 

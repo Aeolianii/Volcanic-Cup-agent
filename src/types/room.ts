@@ -2,7 +2,10 @@
 // Room & Player Types
 // ============================================================
 
+import type { ChatChannel } from "./chat";
+import type { Faction, StoryRuntimeModules } from "./story";
 import type { Role } from "./role";
+import type { CharacterLifeStatus } from "./worldState";
 
 export interface Room {
   room_id: string;
@@ -34,8 +37,22 @@ export interface PlayerView {
   known_locations: string[];
   evidence: string[];
   visible_metrics: VisibleMetric[];
+  visible_factions: VisibleFaction[];
+  chat_channels: ChatChannel[];
+  runtime_modules?: StoryRuntimeModules;
+  life_status: CharacterLifeStatus;
+  ghost_mode: boolean;
   active_events: ActiveEvent[];
   suggested_actions: SuggestedAction[];
+}
+
+export interface VisibleFaction extends Pick<Faction, "id" | "name" | "description" | "goals" | "relationships"> {
+  known_members: string[];
+  state?: {
+    power: number;
+    resources: number;
+    public_support: number;
+  };
 }
 
 export interface VisibleMetric {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { roomManager } from "@/lib/roomManager";
 import { generateGMNarrative } from "@/engine/aiGM";
 import { getAIProvider } from "@/lib/aiProvider";
+import { buildChatChannelsForPlayer, buildVisibleFactionsForPlayer } from "@/engine/knowledgeBoundary";
 import type { Player, PlayerView, StoryBible, SuggestedActionForGM, WorldState } from "@/types";
 
 export async function GET(
@@ -36,6 +37,8 @@ export async function GET(
       known_locations: [],
       known_events: [],
       evidence: [],
+      discovered_clues: [],
+      private_chat_unlocked_with: [],
     };
 
     const gmOutput = await generateGMNarrative(
@@ -63,6 +66,9 @@ export async function GET(
       worldState,
       bible
     );
+    const characterState = worldState.character_states[playerId] ||
+      (player.role_id ? worldState.character_states[player.role_id] : undefined);
+    const ghostMode = characterState?.ghost_mode === true;
 
     const playerView: PlayerView = {
       role_sheet: player.role,
@@ -71,8 +77,17 @@ export async function GET(
       known_locations: pk.known_locations,
       evidence: pk.evidence.map((item) => normalizeKnowledgeItem(item, bible, worldState)),
       visible_metrics: visibleMetrics,
+      visible_factions: buildVisibleFactionsForPlayer(player, worldState, bible),
+      chat_channels: buildChatChannelsForPlayer(player, room.players, worldState, bible),
+      runtime_modules: bible.runtime_modules,
+      life_status: characterState?.status || "alive",
+      ghost_mode: ghostMode,
       active_events: worldState.events
-        .filter((e) => e.triggered)
+        .filter((e) => {
+          if (!e.triggered) return false;
+          const be = bible.events.find((item) => item.id === e.event_id);
+          return be?.visibility === "public" || pk.known_events.includes(e.event_id);
+        })
         .map((e) => {
           const be = bible.events.find((be) => be.id === e.event_id);
           return {
@@ -82,7 +97,7 @@ export async function GET(
             turn_triggered: e.trigger_turn || 0,
           };
         }),
-      suggested_actions: suggestedActions.map((sa, i) => ({
+      suggested_actions: (ghostMode ? [] : suggestedActions).map((sa, i) => ({
         id: `sa_${i}`,
         label: sa.label,
         action_type: sa.action_type,
@@ -260,8 +275,10 @@ function sanitizeSuggestedActions(
     "betray",
     "confess",
   ]);
+  const disabledActions = new Set(bible.runtime_modules?.disabled_action_types || []);
 
   const filtered = actions.filter((action) => {
+    if (disabledActions.has(action.action_type)) return false;
     const target = String(action.target || "").toLowerCase();
     const label = `${action.label || ""} ${action.context || ""}`.toLowerCase();
     const visibleText = `${action.label || ""} ${action.context || ""} ${action.target || ""} ${action.method || ""}`;

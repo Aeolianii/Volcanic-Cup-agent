@@ -16,6 +16,15 @@ interface EndingData {
     total_conditions: number;
     progress: number;
   }[];
+  victory_settlement?: {
+    player_id: string;
+    role_id: string | null;
+    faction_id?: string;
+    faction_victory: boolean;
+    personal_victory: boolean;
+    life_status: string;
+    notes: string[];
+  }[];
   ending_narrative: string;
 }
 
@@ -78,6 +87,33 @@ export default function EndingPage() {
         </div>
       )}
 
+      {data?.victory_settlement && data.victory_settlement.length > 0 && (
+        <div className="panel mb-8">
+          <h3 className="font-fantasy text-amber-400 mb-4">胜利结算</h3>
+          <div className="space-y-3">
+            {data.victory_settlement.map((item) => (
+              <div key={item.player_id} className="p-3 rounded border border-midnight-600 bg-midnight-700/30">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <span className="text-parchant-200 font-medium">{item.role_id || item.player_id}</span>
+                  <span className="text-xs text-parchant-500">状态：{lifeStatusLabel(item.life_status)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className={item.faction_victory ? "text-emerald-300" : "text-parchant-500"}>
+                    阵营胜利：{item.faction_victory ? "是" : "否"}
+                  </div>
+                  <div className={item.personal_victory ? "text-emerald-300" : "text-parchant-500"}>
+                    个人胜利：{item.personal_victory ? "是" : "否"}
+                  </div>
+                </div>
+                {item.notes.length > 0 && (
+                  <p className="text-xs text-parchant-500 mt-2">{item.notes.join("；")}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* All Endings Status */}
       {data?.all_endings_status && data.all_endings_status.length > 0 && (
         <div className="panel mb-8">
@@ -130,4 +166,14 @@ export default function EndingPage() {
       </div>
     </div>
   );
+}
+
+function lifeStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    alive: "存活",
+    dead: "死亡",
+    missing: "失踪",
+    imprisoned: "囚禁",
+  };
+  return labels[status] || status;
 }

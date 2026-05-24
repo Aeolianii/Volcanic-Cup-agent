@@ -13,6 +13,7 @@ export interface AIProvider {
 export interface GMContext {
   story_bible: StoryBibleSummary;
   world_state_summary: WorldStateSummary;
+  runtime_modules?: import("./story").StoryRuntimeModules;
   progression_guidance?: ProgressionGuidance;
   recent_events: string[];
   current_turn: number;
@@ -83,6 +84,8 @@ export interface GMActionContext {
 export interface StoryBibleSummary {
   title: string;
   world_setting: string;
+  genre_profile?: string;
+  tone_tags?: string[];
   roles: { id: string; name: string; public_identity: string }[];
   npcs: { id: string; name: string; public_identity: string }[];
   chapters: { id: string; title: string }[];
@@ -131,6 +134,9 @@ export interface NPCContext {
 }
 
 export interface NPCLocalView {
+  self_information: string[];
+  public_information: string[];
+  discovered_information: string[];
   known_facts: string[];
   known_events: string[];
   known_players: { id: string; name: string; public_identity: string; location: string }[];
@@ -160,6 +166,7 @@ export interface ActionParseContext {
   current_location: string;
   known_facts: string[];
   active_events: string[];
+  runtime_modules?: import("./story").StoryRuntimeModules;
 }
 
 export interface ParsedAction {
