@@ -29,13 +29,30 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh]">
+    <div className="relative isolate flex min-h-[calc(100vh-5rem)] flex-col items-center justify-center overflow-hidden py-16">
+      <div
+        aria-hidden="true"
+        className="absolute inset-y-0 left-1/2 -z-30 w-screen -translate-x-1/2 bg-cover bg-center bg-no-repeat md:bg-[center_42%]"
+        style={{ backgroundImage: "url('/images/home-background.png')" }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-y-0 left-1/2 -z-20 w-screen -translate-x-1/2"
+        style={{
+          background:
+            "radial-gradient(circle at center 34%, rgba(245, 158, 11, 0.08), rgba(10, 12, 24, 0.42) 38%, rgba(10, 12, 24, 0.82) 78%), linear-gradient(90deg, rgba(10, 12, 24, 0.88), rgba(10, 12, 24, 0.42) 48%, rgba(10, 12, 24, 0.9)), linear-gradient(180deg, rgba(10, 12, 24, 0.84), rgba(10, 12, 24, 0.36) 42%, rgba(10, 12, 24, 0.94))",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-y-0 left-1/2 -z-10 w-screen -translate-x-1/2 bg-midnight-950/10 backdrop-blur-[0.5px]"
+      />
       {/* Hero */}
-      <div className="text-center mb-12">
-        <h1 className="font-fantasy text-5xl text-amber-400 mb-4 tracking-wider">
-          AI Story Foundry
+      <div className="text-center mb-12 drop-shadow-[0_2px_18px_rgba(0,0,0,0.85)]">
+        <h1 className="font-fantasy text-5xl text-amber-300 mb-4 tracking-wider">
+          AI Story Engine
         </h1>
-        <p className="text-parchant-400 text-lg max-w-xl mx-auto leading-relaxed">
+        <p className="text-parchant-200 text-lg max-w-xl mx-auto leading-relaxed">
           输入你的故事创意，AI 自动生成完整的互动叙事世界。
           <br />
           多人角色扮演，动态规则引擎，AI 驱动的 NPC 与 GM。
