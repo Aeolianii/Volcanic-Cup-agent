@@ -38,9 +38,25 @@ function getConfig() {
   };
 }
 
-async function chatJSON<T>(messages: ChatMessage[], fallback: T, maxTokens = 1200): Promise<T> {
+type LLMResult<T> = {
+  ok: boolean;
+  value: T;
+  reason?: string;
+  model?: string;
+  baseUrl?: string;
+};
+
+async function chatJSONWithStatus<T>(messages: ChatMessage[], fallback: T, maxTokens = 1200): Promise<LLMResult<T>> {
   const { apiKey, baseUrl, model } = getConfig();
-  if (!apiKey) return fallback;
+  const publicStatus = { model, baseUrl };
+  if (!apiKey) {
+    return {
+      ok: false,
+      value: fallback,
+      reason: "未配置大模型 API Key。请在 .env.local 中设置 DEEPSEEK_API_KEY 或 OPENAI_COMPAT_API_KEY。",
+      ...publicStatus,
+    };
+  }
 
   try {
     const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
@@ -59,19 +75,49 @@ async function chatJSON<T>(messages: ChatMessage[], fallback: T, maxTokens = 120
       }),
     });
 
-    if (!response.ok) throw new Error(`LLM request failed: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      return {
+        ok: false,
+        value: fallback,
+        reason: `大模型 API 请求失败：HTTP ${response.status}${errorText ? ` - ${errorText.slice(0, 240)}` : ""}`,
+        ...publicStatus,
+      };
+    }
 
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content;
-    if (typeof content !== "string") return fallback;
+    if (typeof content !== "string") {
+      return {
+        ok: false,
+        value: fallback,
+        reason: "大模型 API 返回中没有 choices[0].message.content。",
+        ...publicStatus,
+      };
+    }
 
-    return parseJSON(content, fallback);
-  } catch {
-    return fallback;
+    const parsed = parseJSONWithStatus(content, fallback);
+    return {
+      ok: parsed.ok,
+      value: parsed.value,
+      reason: parsed.ok ? undefined : parsed.reason,
+      ...publicStatus,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      value: fallback,
+      reason: `大模型 API 调用异常：${String(error)}`,
+      ...publicStatus,
+    };
   }
 }
 
-function parseJSON<T>(content: string, fallback: T): T {
+async function chatJSON<T>(messages: ChatMessage[], fallback: T, maxTokens = 1200): Promise<T> {
+  return (await chatJSONWithStatus(messages, fallback, maxTokens)).value;
+}
+
+function parseJSONWithStatus<T>(content: string, fallback: T): { ok: boolean; value: T; reason?: string } {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const raw = (fenced || content).trim();
   const firstBrace = raw.indexOf("{");
@@ -81,10 +127,18 @@ function parseJSON<T>(content: string, fallback: T): T {
     : raw;
 
   try {
-    return JSON.parse(jsonText) as T;
-  } catch {
-    return fallback;
+    return { ok: true, value: JSON.parse(jsonText) as T };
+  } catch (error) {
+    return {
+      ok: false,
+      value: fallback,
+      reason: `大模型返回内容不是合法 JSON：${String(error)}；原始内容片段：${raw.slice(0, 240)}`,
+    };
   }
+}
+
+function parseJSON<T>(content: string, fallback: T): T {
+  return parseJSONWithStatus(content, fallback).value;
 }
 
 function systemJSON(task: string): ChatMessage {
@@ -106,7 +160,7 @@ export const llmAIProvider: AIProvider = {
 
   async generateNarrative(context: GMContext): Promise<GMNarrativeOutput> {
     const fallback = await mockAIProvider.generateNarrative(context);
-    return chatJSON<GMNarrativeOutput>(
+    const result = await chatJSONWithStatus<GMNarrativeOutput>(
       [
         systemJSON(
           "Generate a concise GM narrative from the provided Story Bible summary and World State summary. The GM can narrate and suggest actions, but cannot modify World State. Required fields: narration, suggested_events, revealed_information, suggested_actions, mood."
@@ -116,6 +170,24 @@ export const llmAIProvider: AIProvider = {
       fallback,
       1600
     );
+
+    return {
+      ...result.value,
+      provider_status: result.ok
+        ? {
+            provider: "llm",
+            ok: true,
+            model: result.model,
+            base_url: result.baseUrl,
+          }
+        : {
+            provider: "fallback",
+            ok: false,
+            reason: result.reason,
+            model: result.model,
+            base_url: result.baseUrl,
+          },
+    };
   },
 
   async generateNPCAction(context: NPCContext): Promise<NPCActionOutput | null> {

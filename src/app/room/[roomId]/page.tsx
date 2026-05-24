@@ -243,7 +243,8 @@ export default function RoomPage() {
           const nextSuggestedActions = normalizeSuggestedActions(data.suggested_actions);
           replaceSuggestedActions(nextSuggestedActions);
 
-          setActionFeedback("行动已结算，结果已写入 GM 叙事。");
+          const gmStatusText = formatGMProviderStatus(data.gm_provider_status);
+          setActionFeedback(gmStatusText || "行动已结算，结果已写入 GM 叙事。");
 
           // Check ending
           if (data.ending) {
@@ -329,7 +330,8 @@ export default function RoomPage() {
           }
           const nextSuggestedActions = normalizeSuggestedActions(data.suggested_actions);
           replaceSuggestedActions(nextSuggestedActions);
-          setActionFeedback("行动已结算，结果已写入 GM 叙事。");
+          const gmStatusText = formatGMProviderStatus(data.gm_provider_status);
+          setActionFeedback(gmStatusText || "行动已结算，结果已写入 GM 叙事。");
 
           if (data.ending) {
             dispatch({ type: "SET_PHASE", phase: "ending" });
@@ -525,6 +527,24 @@ export default function RoomPage() {
   }
 
   return null;
+}
+
+function formatGMProviderStatus(status: unknown): string {
+  if (!status || typeof status !== "object") return "";
+
+  const data = status as Record<string, unknown>;
+  const ok = data.ok === true;
+  const provider = data.provider === "llm" ? "大模型" : "备用模板";
+  const reason = typeof data.reason === "string" ? data.reason : "未知原因";
+  const model = typeof data.model === "string" ? data.model : "";
+  const baseUrl = typeof data.base_url === "string" ? data.base_url : "";
+
+  if (ok) {
+    return `行动已结算，AI GM 已通过大模型生成本次叙事${model ? `（模型：${model}）` : ""}。`;
+  }
+
+  const configHint = [model ? `模型：${model}` : "", baseUrl ? `地址：${baseUrl}` : ""].filter(Boolean).join("，");
+  return `行动已结算，但 AI GM 没有成功调用大模型，已使用备用叙事。原因：${reason}${configHint ? `（${configHint}）` : ""}`;
 }
 
 function normalizeSuggestedActions(actions: unknown): SuggestedAction[] {

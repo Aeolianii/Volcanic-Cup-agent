@@ -105,6 +105,13 @@ export interface GMNarrativeOutput {
   revealed_information: RevealedInfo[];
   suggested_actions: SuggestedActionForGM[];
   mood: string;
+  provider_status?: {
+    provider: "llm" | "fallback";
+    ok: boolean;
+    reason?: string;
+    model?: string;
+    base_url?: string;
+  };
 }
 
 export interface RevealedInfo {

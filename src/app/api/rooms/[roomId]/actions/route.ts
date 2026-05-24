@@ -226,6 +226,7 @@ export async function POST(
       all_endings_status: endingResult.all_endings_status,
       chapter_transition: chapterTransition.should_transition ? chapterTransition : null,
       gm_narrative: gmNarrative,
+      gm_provider_status: gmNarrative.provider_status,
       gm_message: gmMessage,
       npc_results: npcTurn.npcResults,
       suggested_actions: gmNarrative.suggested_actions,
