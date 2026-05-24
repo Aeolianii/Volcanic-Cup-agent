@@ -32,11 +32,10 @@ export default function HomePage() {
     <div className="relative isolate flex min-h-[calc(100vh-5rem)] flex-col items-center justify-center overflow-hidden py-16">
       <div
         aria-hidden="true"
-        className="absolute inset-y-0 left-1/2 -z-30 w-screen -translate-x-1/2 bg-no-repeat"
+        className="absolute inset-y-0 left-1/2 -z-30 w-screen -translate-x-1/2 bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: "url('/images/home-background.png')",
-          backgroundSize: "100% 100%",
-          backgroundPosition: "center center",
+          backgroundAttachment: "fixed",
         }}
       />
       <div
