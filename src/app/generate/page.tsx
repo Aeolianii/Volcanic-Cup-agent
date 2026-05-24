@@ -27,6 +27,9 @@ function GeneratePageContent() {
   const [characterDetails, setCharacterDetails] = useState("");
   const [worldSetting, setWorldSetting] = useState("");
   const [loading, setLoading] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhanceMessage, setEnhanceMessage] = useState("");
+  const [allowLowPlayability, setAllowLowPlayability] = useState(false);
   const [bible, setBible] = useState<StoryBible | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [playability, setPlayability] = useState<PlayabilityReport | null>(null);
@@ -35,6 +38,8 @@ function GeneratePageContent() {
   const handleGenerate = async () => {
     setLoading(true);
     setError("");
+    setEnhanceMessage("");
+    setAllowLowPlayability(false);
 
     try {
       if (isDemo) {
@@ -79,6 +84,57 @@ function GeneratePageContent() {
       setError("网络错误，请重试");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEnhanceWithAI = async () => {
+    setEnhancing(true);
+    setError("");
+    setEnhanceMessage("");
+
+    try {
+      const res = await fetch("/api/stories/enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          genre,
+          opening,
+          ending,
+          characters,
+          character_details: characterDetails,
+          world_setting: worldSetting,
+          playability_score: playability?.merged.playable_score,
+          suggested_fixes: playability?.merged.suggested_fixes || [],
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.error || "AI 完善失败，请稍后重试");
+        return;
+      }
+
+      const enhanced = data.enhanced || {};
+      setGenre(enhanced.genre || genre);
+      setOpening(enhanced.opening || opening);
+      setEnding(enhanced.ending || ending);
+      setCharacters(enhanced.characters || characters);
+      setCharacterDetails(enhanced.character_details || characterDetails);
+      setWorldSetting(enhanced.world_setting || worldSetting);
+      setBible(null);
+      setValidation(null);
+      setPlayability(null);
+      setAllowLowPlayability(false);
+
+      if (data.provider_status?.ok === false) {
+        setEnhanceMessage(`已使用本地规则完善草稿。大模型未成功调用：${data.provider_status.reason || "未知原因"}`);
+      } else {
+        setEnhanceMessage("AI 已完善剧本和人设，请检查后重新生成 Story Bible。");
+      }
+    } catch {
+      setError("AI 完善请求失败，请检查网络或服务状态");
+    } finally {
+      setEnhancing(false);
     }
   };
 
@@ -190,6 +246,39 @@ function GeneratePageContent() {
                   建议：{playability.merged.suggested_fixes.slice(0, 3).join("；")}
                 </p>
               )}
+              {isLowPlayability(playability) && (
+                <div className="mt-3 rounded border border-orange-500/50 bg-orange-950/30 p-3">
+                  <p className="text-sm text-orange-200 mb-2">
+                    低可玩性分析得分可能会影响游戏体验。你可以让 AI 先完善剧本和人设，补强人物性格、公开目标、秘密目标、人物关系和核心冲突。
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={handleEnhanceWithAI}
+                      disabled={enhancing}
+                      className="btn-primary text-sm px-4 py-2 disabled:opacity-50"
+                    >
+                      {enhancing ? "AI 完善中..." : "由 AI 完善剧本和人设"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAllowLowPlayability(true);
+                        setEnhanceMessage("已保留当前剧本，你可以继续创建房间或手动修改。");
+                      }}
+                      className="btn-secondary text-sm px-4 py-2"
+                    >
+                      暂不完善，继续使用
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {enhanceMessage && (
+            <div className="mb-4 p-3 rounded border border-emerald-600/40 bg-emerald-900/10 text-sm text-emerald-200">
+              {enhanceMessage}
             </div>
           )}
 
@@ -231,7 +320,7 @@ function GeneratePageContent() {
 
         <button
           onClick={handleCreateRoom}
-          disabled={validation?.valid === false || playability?.merged.playable === false}
+          disabled={validation?.valid === false || (playability?.merged.playable === false && !allowLowPlayability)}
           className="btn-primary w-full text-lg py-3 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           创建房间
@@ -323,6 +412,10 @@ function GeneratePageContent() {
       </div>
     </div>
   );
+}
+
+function isLowPlayability(playability: PlayabilityReport): boolean {
+  return playability.merged.playable === false || playability.merged.playable_score < 60;
 }
 
 function runtimeProfileLabel(profile: string): string {

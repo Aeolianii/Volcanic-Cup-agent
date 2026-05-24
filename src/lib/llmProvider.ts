@@ -153,6 +153,75 @@ function systemJSON(task: string): ChatMessage {
   };
 }
 
+export async function enhanceStorySeedWithLLM(input: {
+  genre: string;
+  opening: string;
+  ending: string;
+  characters: string;
+  character_details: string;
+  world_setting: string;
+  playability_score?: number;
+  suggested_fixes?: string[];
+}): Promise<LLMResult<{
+  genre: string;
+  opening: string;
+  ending: string;
+  characters: string;
+  character_details: string;
+  world_setting: string;
+  improvement_summary: string[];
+}>> {
+  const fallback = buildLocalEnhancedStorySeed(input);
+  return chatJSONWithStatus(
+    [
+      systemJSON([
+        "你是互动剧本和多人跑团式叙事游戏设计师。",
+        "用户的可玩性分析得分较低，你需要在不推翻原始创意的前提下完善剧本和人设。",
+        "重点补强：人物性格、公开目标、秘密目标、人物间关系、核心冲突、可调查线索、世界观约束。",
+        "必须返回 JSON，字段为：genre, opening, ending, characters, character_details, world_setting, improvement_summary。",
+        "opening 和 ending 要更具体，但不要写成长篇小说；characters 要列出可玩人物；character_details 要写人物性格、目标、秘密、冲突和关系。",
+      ].join("\n")),
+      { role: "user", content: JSON.stringify(input) },
+    ],
+    fallback,
+    1800
+  );
+}
+
+function buildLocalEnhancedStorySeed(input: {
+  genre: string;
+  opening: string;
+  ending: string;
+  characters: string;
+  character_details: string;
+  world_setting: string;
+  suggested_fixes?: string[];
+}) {
+  const genre = input.genre || "悬疑互动剧本";
+  const opening = input.opening || "一场看似普通的聚会突然被意外打断，所有人都被迫留在现场等待真相浮出水面。";
+  const ending = input.ending || "玩家通过调查、谈判和互相试探，揭开核心秘密，并决定真相公开、私下和解或让某人承担代价。";
+  const characters = input.characters || "调查者、知情者、隐瞒秘密的人、被牵连的旁观者";
+  const characterDetails = input.character_details || [
+    "调查者：外表冷静，公开目标是查清真相，秘密目标是证明自己的判断没有错。",
+    "知情者：谨慎回避冲突，公开目标是配合调查，秘密目标是隐藏与事件有关的旧关系。",
+    "隐瞒秘密的人：擅长转移话题，公开目标是维持秩序，秘密目标是销毁对自己不利的证据。",
+    "旁观者：容易被情绪影响，公开目标是自保，秘密目标是利用信息差换取安全。",
+  ].join("\n");
+  const worldSetting = input.world_setting || "故事发生在封闭空间中，外部支援暂时无法进入；每个人掌握的信息都不完整，公开线索和私人秘密会逐步推动局势升级。";
+
+  return {
+    genre,
+    opening: `${opening}\n补强：开场应尽快制造一个必须立刻处理的事件，并给每个角色一个必须行动的理由。`,
+    ending: `${ending}\n补强：结局应由真相揭露程度、关键人物信任度和玩家是否公开秘密共同决定。`,
+    characters,
+    character_details: characterDetails,
+    world_setting: worldSetting,
+    improvement_summary: input.suggested_fixes?.length
+      ? input.suggested_fixes.slice(0, 4)
+      : ["补充人物目标与秘密", "强化人物间冲突", "增加可调查线索", "明确结局判定方向"],
+  };
+}
+
 export const llmAIProvider: AIProvider = {
   async generateStoryBible(seed: StorySeed): Promise<StoryBible> {
     return mockAIProvider.generateStoryBible(seed);
