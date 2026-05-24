@@ -18,8 +18,11 @@ interface EndingData {
   }[];
   victory_settlement?: {
     player_id: string;
+    player_name?: string;
     role_id: string | null;
+    role_name?: string;
     faction_id?: string;
+    faction_name?: string;
     faction_victory: boolean;
     personal_victory: boolean;
     life_status: string;
@@ -49,7 +52,7 @@ export default function EndingPage() {
           setData(result);
         }
       } catch {
-        // Use mock data
+        // 保持结算页可用，失败时只结束加载状态
       } finally {
         setLoading(false);
       }
@@ -68,7 +71,6 @@ export default function EndingPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      {/* Ending Title */}
       <div className="text-center mb-10">
         <h1 className="font-fantasy text-4xl text-amber-400 mb-2">
           {data?.ending?.title || "故事结束"}
@@ -78,11 +80,10 @@ export default function EndingPage() {
         </p>
       </div>
 
-      {/* Ending Narrative */}
       {data?.ending_narrative && (
         <div className="panel mb-8">
           <div className="prose prose-invert max-w-none text-parchant-200 leading-relaxed whitespace-pre-wrap">
-            {data.ending_narrative}
+            {sanitizeSettlementText(data.ending_narrative)}
           </div>
         </div>
       )}
@@ -106,7 +107,7 @@ export default function EndingPage() {
                   </div>
                 </div>
                 {item.notes.length > 0 && (
-                  <p className="text-xs text-parchant-500 mt-2">{item.notes.join("；")}</p>
+                  <p className="text-xs text-parchant-500 mt-2">{item.notes.map(sanitizeSettlementText).join("；")}</p>
                 )}
               </div>
             ))}
@@ -114,7 +115,6 @@ export default function EndingPage() {
         </div>
       )}
 
-      {/* All Endings Status */}
       {data?.all_endings_status && data.all_endings_status.length > 0 && (
         <div className="panel mb-8">
           <h3 className="font-fantasy text-amber-400 mb-4">所有可能结局</h3>
@@ -132,7 +132,7 @@ export default function EndingPage() {
                   <span className={`font-medium ${
                     es.ending_id === endingId ? "text-amber-300" : "text-parchant-300"
                   }`}>
-                    {es.title}
+                    {sanitizeSettlementText(es.title)}
                     {es.ending_id === endingId && (
                       <span className="text-xs text-amber-500 ml-2">← 达成</span>
                     )}
@@ -155,7 +155,6 @@ export default function EndingPage() {
         </div>
       )}
 
-      {/* Actions */}
       <div className="flex gap-4 justify-center">
         <button onClick={() => router.push("/")} className="btn-primary px-8">
           返回首页
@@ -174,15 +173,21 @@ function lifeStatusLabel(status: string): string {
     dead: "死亡",
     missing: "失踪",
     imprisoned: "囚禁",
+    defeated: "受挫",
+    setback: "受挫",
   };
-  return labels[status] || status;
+  return labels[status] || sanitizeSettlementText(status);
 }
 
 function settlementDisplayName(item: {
   player_id: string;
+  player_name?: string;
   role_id: string | null;
+  role_name?: string;
 }): string {
-  // Map internal IDs to display names
+  if (item.role_name) return sanitizeSettlementText(item.role_name);
+  if (item.player_name) return sanitizeSettlementText(item.player_name);
+
   const roleNames: Record<string, string> = {
     role_1: "王子",
     role_2: "圣女",
@@ -190,17 +195,42 @@ function settlementDisplayName(item: {
     role_4: "骑士",
   };
 
-  if (item.role_id && roleNames[item.role_id]) {
-    return roleNames[item.role_id];
-  }
-
-  // Fallback: clean up the ID for display
-  if (item.role_id) {
-    return item.role_id
-      .replace(/^role_/, "")
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-
+  if (item.role_id && roleNames[item.role_id]) return roleNames[item.role_id];
+  if (item.role_id) return sanitizeSettlementText(item.role_id);
   return "未知角色";
+}
+
+function sanitizeSettlementText(text: string | undefined): string {
+  let output = String(text || "");
+  const replacements: Array<[RegExp, string]> = [
+    [/\brole_1\b/g, "王子"],
+    [/\brole_2\b/g, "圣女"],
+    [/\brole_3\b/g, "刺客"],
+    [/\brole_4\b/g, "骑士"],
+    [/\bplayer[\s_-]?\d+\b/gi, "玩家"],
+    [/\bsituation_stability\b/g, "局势稳定度"],
+    [/\bpolitical_stability\b/g, "政治稳定度"],
+    [/\btruth_progress\b/g, "真相进度"],
+    [/\bfaction_power\b/g, "势力值"],
+    [/\bsupernatural_pressure\b/g, "超自然压力"],
+    [/\bsuspicion\b/g, "怀疑度"],
+    [/\btrust\b/g, "信任度"],
+    [/\bcurrent_location\b/g, "当前位置"],
+    [/\bconnected_location\b/g, "相邻地点"],
+    [/\bself_goal\b/g, "个人目标"],
+    [/\ball_players\b/g, "所有玩家"],
+  ];
+
+  for (const [pattern, label] of replacements) {
+    output = output.replace(pattern, label);
+  }
+
+  output = output
+    .replace(/\bnpc_([a-z0-9_]+)\b/gi, "相关人物")
+    .replace(/\bevt_([a-z0-9_]+)\b/gi, "相关事件")
+    .replace(/\bevent_([a-z0-9_]+)\b/gi, "相关事件")
+    .replace(/\bending_([a-z0-9_]+)\b/gi, "相关结局")
+    .replace(/\b[a-z]+(?:_[a-z0-9]+){2,}\b/gi, "相关条目");
+
+  return output;
 }

@@ -16,8 +16,11 @@ export interface EndingStatus {
 
 export interface PlayerVictorySettlement {
   player_id: string;
+  player_name?: string;
   role_id: string | null;
+  role_name?: string;
   faction_id?: string;
+  faction_name?: string;
   faction_victory: boolean;
   personal_victory: boolean;
   life_status: string;
@@ -69,6 +72,7 @@ export function evaluateVictorySettlement(
 ): PlayerVictorySettlement[] {
   return players.map((player) => {
     const roleId = player.role_id;
+    const role = roleId ? bible.roles.find((item) => item.id === roleId) : undefined;
     const faction = roleId ? bible.factions.find((item) => item.members.includes(roleId)) : undefined;
     const characterState = state.character_states[player.player_id] ||
       (roleId ? state.character_states[roleId] : undefined);
@@ -100,8 +104,11 @@ export function evaluateVictorySettlement(
 
     return {
       player_id: player.player_id,
+      player_name: player.name,
       role_id: roleId,
+      role_name: player.role?.name || role?.name,
       faction_id: faction?.id,
+      faction_name: faction?.name,
       faction_victory: factionVictory,
       personal_victory: personalVictory,
       life_status: characterState?.status || "alive",

@@ -28,9 +28,8 @@ export async function POST(
         ending_title: endingResult.ending.title,
         ending_description: endingResult.ending.description,
         world_state_summary: {
-          flags: worldState.flags,
+          flags: buildPublicFlagSummary(worldState.flags),
           metrics: worldState.metrics.map((m) => {
-            // Find the metric definition in bible to get proper label
             const metricDef = bible.metrics.find((metric) => metric.id === m.metric_id);
             const labelMap: Record<string, string> = {
               situation_stability: "局势稳定度",
@@ -41,14 +40,18 @@ export async function POST(
             };
             return {
               id: m.metric_id,
-              label: metricDef?.label || labelMap[m.metric_id] || m.metric_id,
+              label: metricDef?.label || labelMap[m.metric_id] || publicLabel(m.metric_id),
               value: m.value,
             };
           }),
-          active_events: worldState.events.filter((e) => e.triggered).map((e) => e.event_id),
+          active_events: worldState.events
+            .filter((e) => e.triggered)
+            .map((e) => bible.events.find((event) => event.id === e.event_id)?.title || publicLabel(e.event_id)),
           player_locations: {},
         },
-        key_events: worldState.events.filter((e) => e.triggered).map((e) => e.event_id),
+        key_events: worldState.events
+          .filter((e) => e.triggered)
+          .map((e) => bible.events.find((event) => event.id === e.event_id)?.title || publicLabel(e.event_id)),
         player_contributions: {},
       });
 
@@ -73,4 +76,29 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+function buildPublicFlagSummary(flags: Record<string, boolean>): Record<string, boolean> {
+  const summary: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(flags)) {
+    if (!value) continue;
+    if (/^chapter_\d+_started$/.test(key)) {
+      summary[`第 ${key.match(/\d+/)?.[0] || "?"} 章已开始`] = true;
+      continue;
+    }
+    if (/^(adv_|personal_victory_|completed_|known_|triggered_|event_)/.test(key)) continue;
+    summary[publicLabel(key)] = true;
+  }
+  return summary;
+}
+
+function publicLabel(value: string): string {
+  return String(value || "")
+    .replace(/^evt_/, "")
+    .replace(/^event_/, "")
+    .replace(/^ending_/, "")
+    .replace(/^npc_/, "")
+    .replace(/^role_/, "角色 ")
+    .replace(/_/g, " ")
+    .trim() || "未知条目";
 }
