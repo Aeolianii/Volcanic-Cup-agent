@@ -26,9 +26,9 @@ export function parsePlayerAction(
   // Validate action_type against known types
   const validTypes: ActionType[] = [
     "talk", "persuade", "threaten", "deceive", "ally", "betray", "confess",
-    "investigate", "search", "track", "eavesdrop", "interrogate", "decode",
+    "investigate", "search", "track", "eavesdrop", "interrogate", "decode", "spy", "divination", "gather_intelligence",
     "command", "summon_meeting", "gain_support", "coup", "impeach", "appoint",
-    "attack", "assassinate", "duel", "ambush", "defend",
+    "attack", "assassinate", "duel", "ambush", "defend", "execute", "sacrifice",
     "buy", "trade", "steal", "transport", "build",
   ];
 

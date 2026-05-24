@@ -21,11 +21,11 @@ export type ActionType =
   // Social
   | "talk" | "persuade" | "threaten" | "deceive" | "ally" | "betray" | "confess"
   // Investigation
-  | "investigate" | "search" | "track" | "eavesdrop" | "interrogate" | "decode"
+  | "investigate" | "search" | "track" | "eavesdrop" | "interrogate" | "decode" | "spy" | "divination" | "gather_intelligence"
   // Political
   | "command" | "summon_meeting" | "gain_support" | "coup" | "impeach" | "appoint"
   // Combat
-  | "attack" | "assassinate" | "duel" | "ambush" | "defend"
+  | "attack" | "assassinate" | "duel" | "ambush" | "defend" | "execute" | "sacrifice"
   // Resource
   | "buy" | "trade" | "steal" | "transport" | "build";
 
@@ -42,9 +42,9 @@ export type NPCActionType =
 
 export const ACTION_CATEGORIES: Record<ActionCategory, ActionType[]> = {
   social: ["talk", "persuade", "threaten", "deceive", "ally", "betray", "confess"],
-  investigation: ["investigate", "search", "track", "eavesdrop", "interrogate", "decode"],
+  investigation: ["investigate", "search", "track", "eavesdrop", "interrogate", "decode", "spy", "divination", "gather_intelligence"],
   political: ["command", "summon_meeting", "gain_support", "coup", "impeach", "appoint"],
-  combat: ["attack", "assassinate", "duel", "ambush", "defend"],
+  combat: ["attack", "assassinate", "duel", "ambush", "defend", "execute", "sacrifice"],
   resource: ["buy", "trade", "steal", "transport", "build"],
 };
 
@@ -103,7 +103,13 @@ export type StateUpdateType =
   | "append_npc_memory"
   | "add_npc_fact"
   | "add_npc_suspected_fact"
-  | "record_known_player_action";
+  | "record_known_player_action"
+  | "add_discovered_clue"
+  | "add_false_information"
+  | "unlock_private_chat"
+  | "set_character_status"
+  | "update_faction_state"
+  | "record_balance_event";
 
 export interface RollResult {
   dice: number;

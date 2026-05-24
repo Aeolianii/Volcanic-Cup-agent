@@ -167,7 +167,7 @@ export const llmAIProvider: AIProvider = {
     return chatJSON<ParsedAction>(
       [
         systemJSON(
-          "Parse the player's natural-language action into JSON fields: action_type, target, method, intent, risk_level. action_type must be one of talk,persuade,threaten,deceive,ally,betray,confess,investigate,search,track,eavesdrop,interrogate,decode,command,summon_meeting,gain_support,coup,impeach,appoint,attack,assassinate,duel,ambush,defend,buy,trade,steal,transport,build. risk_level must be low, medium, or high."
+          "Parse the player's natural-language action into JSON fields: action_type, target, method, intent, risk_level. action_type must be one of talk,persuade,threaten,deceive,ally,betray,confess,investigate,search,track,eavesdrop,interrogate,decode,spy,divination,gather_intelligence,command,summon_meeting,gain_support,coup,impeach,appoint,attack,assassinate,duel,ambush,defend,execute,sacrifice,buy,trade,steal,transport,build. If runtime_modules.disabled_action_types contains an action, avoid returning it and choose a genre-appropriate social/investigation alternative. risk_level must be low, medium, or high."
         ),
         { role: "user", content: JSON.stringify({ input, context }) },
       ],
@@ -180,6 +180,7 @@ export const llmAIProvider: AIProvider = {
 function localParseAction(input: string, context: ActionParseContext): ParsedAction {
   const target = inferTarget(input, context.current_location);
   const text = input.toLowerCase();
+  const disabledActions = new Set(context.runtime_modules?.disabled_action_types || []);
 
   if (/调查|检查|查看|探索|侦查|investigate|inspect|examine/.test(text)) {
     return { action_type: "investigate", target, method: "examine", intent: "find_clues", risk_level: "low" };
@@ -199,8 +200,15 @@ function localParseAction(input: string, context: ActionParseContext): ParsedAct
   if (/威胁|恐吓|threaten|intimidate/.test(text)) {
     return { action_type: "threaten", target, method: "intimidation", intent: "threaten", risk_level: "medium" };
   }
-  if (/刺杀|暗杀|攻击|assassinate|attack/.test(text)) {
+  if (/刺杀|暗杀|攻击|assassinate|attack/.test(text) && !disabledActions.has("assassinate")) {
     return { action_type: "assassinate", target, method: "attack", intent: "assassinate", risk_level: "high" };
+  }
+  if (/刺杀|暗杀|攻击|assassinate|attack/.test(text)) {
+    const mode = context.runtime_modules?.consequence_mode;
+    if (mode === "comic_setback") {
+      return { action_type: "deceive", target, method: "comic_escalation", intent: "create_comic_setback", risk_level: "medium" };
+    }
+    return { action_type: "threaten", target, method: "genre_safe_conflict", intent: "force_confrontation", risk_level: "medium" };
   }
   if (/收买|贿赂|buy|bribe/.test(text)) {
     return { action_type: "buy", target, method: "bribery", intent: "gain_information", risk_level: "medium" };

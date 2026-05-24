@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { DEMO_STORY_BIBLE } from "@/mock/demoStoryBible";
 import type { StoryBible } from "@/types";
 import type { ValidationResult } from "@/engine/storyBibleValidator";
+import type { PlayabilityReport } from "@/engine/storyPlayabilityAnalyzer";
 
 export default function GeneratePage() {
   return (
@@ -19,7 +20,8 @@ function GeneratePageContent() {
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demo") === "true";
 
-  const [genre, setGenre] = useState("西幻");
+  const [storyIdea, setStoryIdea] = useState("");
+  const [genre, setGenre] = useState("");
   const [opening, setOpening] = useState("");
   const [ending, setEnding] = useState("");
   const [characters, setCharacters] = useState("");
@@ -27,6 +29,7 @@ function GeneratePageContent() {
   const [loading, setLoading] = useState(false);
   const [bible, setBible] = useState<StoryBible | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [playability, setPlayability] = useState<PlayabilityReport | null>(null);
   const [error, setError] = useState("");
 
   const handleGenerate = async () => {
@@ -38,6 +41,7 @@ function GeneratePageContent() {
         // Use demo story directly
         setBible(DEMO_STORY_BIBLE);
         setValidation({ valid: true, errors: [], warnings: [] });
+        setPlayability(null);
         setLoading(false);
         return;
       }
@@ -46,6 +50,7 @@ function GeneratePageContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          story_idea: storyIdea,
           genre,
           opening,
           ending,
@@ -58,8 +63,12 @@ function GeneratePageContent() {
       if (data.success) {
         setBible(data.story_bible);
         setValidation(data.validation);
+        setPlayability(data.playability || null);
       } else {
         setError(data.error || "生成失败");
+        setBible(data.story_bible || null);
+        setValidation(data.validation || null);
+        setPlayability(data.playability || null);
       }
     } catch {
       setError("网络错误，请重试");
@@ -140,6 +149,45 @@ function GeneratePageContent() {
             </div>
           </div>
 
+          {bible.runtime_modules && (
+            <div className="mb-4 p-3 rounded border border-midnight-600 bg-midnight-700/30">
+              <h3 className="text-sm text-amber-500 mb-2">玩法模块</h3>
+              <div className="flex flex-wrap gap-1 text-xs">
+                <span className="bg-midnight-600 px-2 py-1 rounded text-parchant-300">
+                  类型：{runtimeProfileLabel(bible.runtime_modules.genre_profile)}
+                </span>
+                <span className="bg-midnight-600 px-2 py-1 rounded text-parchant-300">
+                  后果：{consequenceModeLabel(bible.runtime_modules.consequence_mode)}
+                </span>
+                {Object.entries(bible.runtime_modules.enabled)
+                  .filter(([, enabled]) => enabled)
+                  .map(([key]) => (
+                    <span key={key} className="bg-midnight-600 px-2 py-1 rounded text-parchant-300">
+                      {moduleLabel(key)}
+                    </span>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {playability && (
+            <div className="mb-4 p-3 rounded border border-amber-600/40 bg-amber-900/10">
+              <h3 className="text-sm text-amber-400 mb-1">可玩性分析：{playability.merged.playable_score}/100</h3>
+              {playability.merged.design_notes.length > 0 && (
+                <ul className="text-xs text-parchant-400 list-disc list-inside mb-2">
+                  {playability.merged.design_notes.map((note, index) => (
+                    <li key={index}>{note}</li>
+                  ))}
+                </ul>
+              )}
+              {playability.merged.suggested_fixes.length > 0 && (
+                <p className="text-xs text-parchant-500">
+                  建议：{playability.merged.suggested_fixes.slice(0, 3).join("；")}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <h3 className="text-sm text-amber-500 mb-2">阵营</h3>
@@ -176,7 +224,11 @@ function GeneratePageContent() {
           )}
         </div>
 
-        <button onClick={handleCreateRoom} className="btn-primary w-full text-lg py-3">
+        <button
+          onClick={handleCreateRoom}
+          disabled={validation?.valid === false || playability?.merged.playable === false}
+          className="btn-primary w-full text-lg py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           创建房间
         </button>
       </div>
@@ -190,12 +242,22 @@ function GeneratePageContent() {
 
       <div className="panel space-y-4">
         <div>
+          <label className="text-sm text-parchant-300 mb-1 block">故事创意</label>
+          <textarea
+            value={storyIdea}
+            onChange={(e) => setStoryIdea(e.target.value)}
+            placeholder="可以直接写一整段创意，例如：校园言情、搞笑整活、推理悬疑、权谋阵营等。AI 会结合本地规则分析可玩性并自动选择模块。"
+            className="input-field h-28 resize-none"
+          />
+        </div>
+
+        <div>
           <label className="text-sm text-parchant-300 mb-1 block">题材</label>
           <input
             type="text"
             value={genre}
             onChange={(e) => setGenre(e.target.value)}
-            placeholder="例如：西幻、科幻、武侠"
+            placeholder="可选，例如：校园言情、搞笑、推理、权谋"
             className="input-field"
           />
         </div>
@@ -249,7 +311,7 @@ function GeneratePageContent() {
 
         <button
           onClick={handleGenerate}
-          disabled={loading || (!isDemo && !genre)}
+          disabled={loading || (!isDemo && !storyIdea && !genre && !opening && !worldSetting)}
           className="btn-primary w-full py-3"
         >
           {loading ? "生成中..." : "生成 Story Bible"}
@@ -257,4 +319,49 @@ function GeneratePageContent() {
       </div>
     </div>
   );
+}
+
+function runtimeProfileLabel(profile: string): string {
+  const labels: Record<string, string> = {
+    campus_romance: "校园言情",
+    romance: "恋爱",
+    comedy: "搞笑",
+    mystery: "推理",
+    horror: "恐怖",
+    political_intrigue: "权谋",
+    combat_adventure: "战斗冒险",
+    workplace: "职场",
+    generic: "通用",
+  };
+  return labels[profile] || profile;
+}
+
+function consequenceModeLabel(mode: string): string {
+  const labels: Record<string, string> = {
+    lethal: "可死亡",
+    romance_failure: "攻略失败",
+    comic_setback: "整活翻车",
+    social_setback: "社交受挫",
+    investigation_failure: "推理受阻",
+  };
+  return labels[mode] || mode;
+}
+
+function moduleLabel(key: string): string {
+  const labels: Record<string, string> = {
+    knowledge_fog: "信息迷雾",
+    investigation: "调查",
+    misinformation: "误导信息",
+    factions: "阵营",
+    private_chat: "私聊",
+    relationship_routes: "关系线",
+    combat: "战斗",
+    character_death: "死亡",
+    ghost_mode: "幽灵旁观",
+    failure_screen: "失败界面",
+    comic_setbacks: "搞笑挫折",
+    gm_balancer: "GM 平衡",
+    auto_simulation_after_exit: "离场推演",
+  };
+  return labels[key] || key;
 }

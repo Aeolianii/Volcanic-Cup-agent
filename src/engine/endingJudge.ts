@@ -1,4 +1,4 @@
-import type { WorldState, StoryBible, Ending, EndingCondition } from "@/types";
+import type { Player, WorldState, StoryBible, Ending, EndingCondition } from "@/types";
 
 export interface EndingResult {
   reached: boolean;
@@ -12,6 +12,16 @@ export interface EndingStatus {
   conditions_met: number;
   total_conditions: number;
   progress: number; // 0-100
+}
+
+export interface PlayerVictorySettlement {
+  player_id: string;
+  role_id: string | null;
+  faction_id?: string;
+  faction_victory: boolean;
+  personal_victory: boolean;
+  life_status: string;
+  notes: string[];
 }
 
 export function checkEndings(state: WorldState, bible: StoryBible): EndingResult {
@@ -49,6 +59,59 @@ export function checkEndings(state: WorldState, bible: StoryBible): EndingResult
     ending: null,
     all_endings_status: statuses,
   };
+}
+
+export function evaluateVictorySettlement(
+  players: Player[],
+  state: WorldState,
+  bible: StoryBible,
+  reachedEnding: Ending | null
+): PlayerVictorySettlement[] {
+  return players.map((player) => {
+    const roleId = player.role_id;
+    const faction = roleId ? bible.factions.find((item) => item.members.includes(roleId)) : undefined;
+    const characterState = state.character_states[player.player_id] ||
+      (roleId ? state.character_states[roleId] : undefined);
+    const factionState = faction ? state.faction_states[faction.id] : undefined;
+    const factionVictory = Boolean(
+      faction &&
+      reachedEnding &&
+      (
+        reachedEnding.id.includes(faction.id) ||
+        (factionState && factionState.power + factionState.public_support >= 120) ||
+        faction.goals.some((goal) => reachedEnding.description.includes(goal) || reachedEnding.title.includes(goal))
+      )
+    );
+    const personalCondition = bible.victory_conditions?.find((condition) =>
+      condition.scope === "personal" && condition.owner_id === roleId
+    );
+    const personalVictory = Boolean(
+      reachedEnding &&
+      characterState?.status !== "dead" &&
+      (
+        !personalCondition ||
+        personalCondition.condition_refs.some((ref) =>
+          reachedEnding.description.includes(ref) ||
+          reachedEnding.title.includes(ref) ||
+          state.flags[`personal_victory_${roleId}`] === true
+        )
+      )
+    );
+
+    return {
+      player_id: player.player_id,
+      role_id: roleId,
+      faction_id: faction?.id,
+      faction_victory: factionVictory,
+      personal_victory: personalVictory,
+      life_status: characterState?.status || "alive",
+      notes: [
+        factionVictory ? "阵营目标达成" : "阵营目标未完全达成",
+        personalVictory ? "个人目标达成" : "个人目标未达成",
+        characterState?.status === "dead" ? "角色已死亡，仍可保留阵营胜利结算" : "",
+      ].filter(Boolean),
+    };
+  });
 }
 
 function evaluateEndingCondition(

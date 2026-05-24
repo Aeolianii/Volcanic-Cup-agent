@@ -75,9 +75,7 @@ function failedNarrative(
     ].join("\n\n"),
     suggested_events: lastAction?.triggered_events.map((event) => event.id) || [],
     revealed_information: [],
-    suggested_actions: allowsTemplateFallback(bible) && lastAction
-      ? generateContextualActions(state, bible, lastAction)
-      : [],
+    suggested_actions: buildGenericFallbackActions(state, bible, lastAction),
     mood: "tense",
   };
 }
@@ -170,6 +168,8 @@ function buildGMContext(
     story_bible: {
       title: bible.title,
       world_setting: bible.world_setting.atmosphere,
+      genre_profile: bible.runtime_modules?.genre_profile,
+      tone_tags: bible.runtime_modules?.tone_tags,
       roles: bible.roles.map((role) => ({
         id: role.id,
         name: role.name,
@@ -183,6 +183,7 @@ function buildGMContext(
       chapters: bible.chapters.map((chapter) => ({ id: chapter.id, title: chapter.title })),
       current_chapter_events: (currentChapter?.key_events || []).map(eventLabel),
     },
+    runtime_modules: bible.runtime_modules,
     world_state_summary: {
       flags: state.flags,
       metrics: state.metrics
@@ -732,7 +733,11 @@ function refreshSuggestedActions(
 ): GMNarrativeOutput["suggested_actions"] {
   if (!allowsTemplateFallback(bible)) {
     return filterFreshSuggestedActions(
-      rankProgressiveActions(mergeSuggestedActions([], aiActions, lastAction), state, bible),
+      rankProgressiveActions(
+        mergeSuggestedActions(buildGenericFallbackActions(state, bible, lastAction), aiActions, lastAction),
+        state,
+        bible
+      ),
       state,
       lastAction
     ).slice(0, 5);
@@ -828,6 +833,10 @@ function buildFollowUpActions(
   bible: StoryBible,
   lastAction?: GMActionContext
 ): GMNarrativeOutput["suggested_actions"] {
+  if (!allowsTemplateFallback(bible)) {
+    return buildGenericFallbackActions(state, bible, lastAction);
+  }
+
   const activeEvent = state.events.find((event) => event.triggered);
   const event = bible.events.find((item) => item.id === activeEvent?.event_id) || bible.events[0];
   const archmage = bible.npcs.find((npc) => npc.name.includes("大法师")) || bible.npcs[0];
@@ -983,4 +992,83 @@ function buildFollowUpActions(
       context: "根据当前 World State 重新选择下一步优先级",
     },
   ];
+}
+
+function buildGenericFallbackActions(
+  state: WorldState,
+  bible: StoryBible,
+  lastAction?: GMActionContext
+): GMNarrativeOutput["suggested_actions"] {
+  const modules = bible.runtime_modules;
+  const activeEvent = state.events.find((event) => event.triggered);
+  const event = bible.events.find((item) => item.id === activeEvent?.event_id) || bible.events[0];
+  const firstNpc = bible.npcs[0];
+  const currentTarget =
+    state.locations.find((location) => location.present_characters.length > 0)?.id ||
+    event?.id ||
+    "current_location";
+  const actions: GMNarrativeOutput["suggested_actions"] = [];
+
+  actions.push({
+    label: modules?.enabled.relationship_routes ? "推进关系线" : "梳理下一步目标",
+    action_type: modules?.enabled.relationship_routes ? "talk" : "investigate",
+    target: firstNpc?.id || "self_goal",
+    method: modules?.enabled.relationship_routes ? "careful_conversation" : "reflect",
+    intent: modules?.enabled.relationship_routes ? "build_trust_or_test_attitude" : "plan_next_move",
+    risk_level: "low",
+    context: modules?.enabled.relationship_routes
+      ? "通过对话确认态度、误会或隐藏顾虑"
+      : "根据当前情报重新决定优先级",
+  });
+
+  if (modules?.enabled.investigation !== false) {
+    actions.push({
+      label: "调查当前疑点",
+      action_type: "investigate",
+      target: event?.id || currentTarget,
+      method: "focused_inquiry",
+      intent: "find_clues",
+      risk_level: "low",
+      context: event ? `围绕“${event.title}”寻找可验证信息` : "先确认当前场景中的可用信息",
+    });
+  }
+
+  if (firstNpc) {
+    actions.push({
+      label: `试探${firstNpc.name}`,
+      action_type: "talk",
+      target: firstNpc.id,
+      method: "careful_conversation",
+      intent: "gather_information",
+      risk_level: "medium",
+      context: `${firstNpc.public_identity}，可能掌握与你当前处境相关的信息`,
+    });
+  }
+
+  if (modules?.enabled.comic_setbacks) {
+    actions.push({
+      label: "尝试圆场",
+      action_type: "deceive",
+      target: currentTarget,
+      method: "comic_cover_story",
+      intent: "reduce_embarrassment",
+      risk_level: "medium",
+      context: "用一个看似合理但可能更离谱的解释把局面接住",
+    });
+  } else if (modules?.enabled.factions) {
+    actions.push({
+      label: "争取公开支持",
+      action_type: "gain_support",
+      target: "public_situation",
+      method: "public_positioning",
+      intent: "improve_faction_position",
+      risk_level: "medium",
+      context: "通过公开表态或协调资源改善所在阵营的位置",
+    });
+  }
+
+  return actions
+    .filter((action) => !modules?.disabled_action_types.includes(action.action_type))
+    .filter((action) => !lastAction || actionKey(action.action_type, action.target, action.method, action.intent) !== actionKey(lastAction.action_type, lastAction.target, lastAction.method, lastAction.intent))
+    .slice(0, 5);
 }

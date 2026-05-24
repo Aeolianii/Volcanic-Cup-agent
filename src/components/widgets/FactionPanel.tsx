@@ -1,9 +1,9 @@
 "use client";
 
-import type { Faction } from "@/types";
+import type { VisibleFaction } from "@/types";
 
 interface FactionPanelProps {
-  factions: Faction[];
+  factions: VisibleFaction[];
   memberLabels?: Record<string, string>;
 }
 
@@ -40,11 +40,11 @@ export function FactionPanel({ factions, memberLabels = {} }: FactionPanelProps)
               </div>
             )}
 
-            {faction.members.length > 0 && (
+            {faction.known_members.length > 0 && (
               <div>
-                <span className="text-[10px] text-amber-500/80 uppercase">成员</span>
+                <span className="text-[10px] text-amber-500/80 uppercase">已知成员</span>
                 <div className="flex flex-wrap gap-1 mt-0.5">
-                  {faction.members.map((member) => (
+                  {faction.known_members.map((member) => (
                     <span
                       key={member}
                       className="text-[10px] bg-midnight-600 px-1.5 py-0.5 rounded text-parchment-400"

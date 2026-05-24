@@ -9,6 +9,8 @@ import type {
   WorldState,
   MemoryEntry,
   NPCRuntimeState,
+  CharacterRuntimeState,
+  FactionRuntimeState,
 } from "@/types";
 import type { StoryBible } from "@/types";
 
@@ -39,6 +41,8 @@ export function createWorldState(
       known_locations: [role.starting_location],
       known_events: [],
       evidence: [],
+      discovered_clues: [],
+      private_chat_unlocked_with: [],
     };
   }
 
@@ -52,8 +56,36 @@ export function createWorldState(
       known_player_actions: [],
       relationships: {},
       suspicions: {},
+      discovered_clues: [],
     };
   }
+
+  const characterStates: Record<string, CharacterRuntimeState> = Object.fromEntries(
+    [...bible.roles, ...bible.npcs].map((character) => [
+      character.id,
+      {
+        character_id: character.id,
+        status: "alive" as const,
+        ghost_mode: false,
+      },
+    ])
+  );
+
+  const factionStates: Record<string, FactionRuntimeState> = Object.fromEntries(
+    bible.factions.map((faction) => {
+      const model = bible.faction_models?.find((item) => item.id === faction.id);
+      return [
+        faction.id,
+        {
+          faction_id: faction.id,
+          power: model?.state.power ?? 50,
+          resources: model?.state.resources ?? 50,
+          public_support: model?.state.public_support ?? 50,
+          hidden_information: [...(model?.state.hidden_information || [])],
+        },
+      ];
+    })
+  );
 
   return {
     story_id: storyId,
@@ -78,6 +110,21 @@ export function createWorldState(
       player_knowledge: playerKnowledge,
       npc_knowledge: npcKnowledge,
       public_knowledge: [],
+      discovered_facts: [],
+      false_information: [],
+    },
+    character_states: characterStates,
+    faction_states: factionStates,
+    communication_state: {
+      unlocked_private_chats: [],
+      channel_membership: Object.fromEntries(
+        bible.factions.map((faction) => [`faction:${faction.id}`, faction.members])
+      ),
+    },
+    balance_state: {
+      player_advantage_scores: [],
+      last_balance_turn: 0,
+      recent_events: [],
     },
   };
 }
@@ -280,6 +327,62 @@ export function applyUpdates(state: WorldState, updates: StateUpdate[]): WorldSt
         }
         break;
       }
+      case "add_discovered_clue": {
+        if (update.target && update.fact_id) {
+          const pk = next.knowledge_state.player_knowledge[update.target];
+          if (pk && !pk.discovered_clues.includes(update.fact_id)) pk.discovered_clues.push(update.fact_id);
+          const nk = next.knowledge_state.npc_knowledge[update.target];
+          if (nk && !nk.discovered_clues.includes(update.fact_id)) nk.discovered_clues.push(update.fact_id);
+          next.knowledge_state.discovered_facts.push({
+            fact_id: update.fact_id,
+            discoverer_id: update.target,
+            source_action: String(update.value || "investigation"),
+            turn: next.turn,
+            confidence: Number(update.delta ?? 80),
+          });
+        }
+        break;
+      }
+      case "add_false_information": {
+        if (update.target && update.value) {
+          const id = update.fact_id || `false_info_${next.turn}_${Date.now()}`;
+          next.knowledge_state.false_information.push({
+            id,
+            target_id: update.target,
+            content: String(update.value),
+            source_action: String(update.metric || "failed_investigation"),
+            turn: next.turn,
+            confidence: Number(update.delta ?? 45),
+          });
+          const pk = next.knowledge_state.player_knowledge[update.target];
+          if (pk && !pk.known_facts.includes(id)) pk.known_facts.push(id);
+        }
+        break;
+      }
+      case "unlock_private_chat": {
+        const participants = Array.isArray(update.value) ? update.value.map(String) : [];
+        if (participants.length >= 2) {
+          const pair = [participants[0], participants[1]].sort() as [string, string];
+          const exists = next.communication_state.unlocked_private_chats.some((unlock) =>
+            unlock.participants[0] === pair[0] && unlock.participants[1] === pair[1]
+          );
+          if (!exists) {
+            next.communication_state.unlocked_private_chats.push({
+              participants: pair,
+              reason: String(update.fact_id || "剧情互动"),
+              unlocked_turn: next.turn,
+            });
+          }
+          for (const participant of pair) {
+            const pk = next.knowledge_state.player_knowledge[participant];
+            const other = pair.find((item) => item !== participant);
+            if (pk && other && !pk.private_chat_unlocked_with.includes(other)) {
+              pk.private_chat_unlocked_with.push(other);
+            }
+          }
+        }
+        break;
+      }
       case "remove_known_fact": {
         if (update.target && update.fact_id) {
           const pk = next.knowledge_state.player_knowledge[update.target];
@@ -453,10 +556,59 @@ export function applyUpdates(state: WorldState, updates: StateUpdate[]): WorldSt
         }
         break;
       }
+      case "set_character_status": {
+        if (update.target && update.value) {
+          const status = String(update.value);
+          if (
+            status === "alive" ||
+            status === "dead" ||
+            status === "missing" ||
+            status === "imprisoned" ||
+            status === "defeated" ||
+            status === "setback"
+          ) {
+            next.character_states[update.target] = {
+              character_id: update.target,
+              status,
+              ghost_mode: status === "dead",
+              death_source: status === "dead" ? String(update.fact_id || "未知") : undefined,
+              status_reason: String(update.metric || ""),
+              consequence_label: String(update.fact_id || ""),
+            };
+          }
+        }
+        break;
+      }
+      case "update_faction_state": {
+        if (update.target) {
+          const faction = next.faction_states[update.target];
+          if (faction) {
+            if (update.metric === "power") faction.power = clampValue(faction.power + Number(update.delta || 0));
+            if (update.metric === "resources") faction.resources = clampValue(faction.resources + Number(update.delta || 0));
+            if (update.metric === "public_support") faction.public_support = clampValue(faction.public_support + Number(update.delta || 0));
+            if (Array.isArray(update.value)) faction.hidden_information = update.value.map(String);
+          }
+        }
+        break;
+      }
+      case "record_balance_event": {
+        if (update.value) {
+          next.balance_state.recent_events = [
+            ...next.balance_state.recent_events,
+            String(update.value),
+          ].slice(-10);
+          next.balance_state.last_balance_turn = next.turn;
+        }
+        break;
+      }
     }
   }
 
   return next;
+}
+
+function clampValue(value: number): number {
+  return Math.max(0, Math.min(100, value));
 }
 
 function createMemory(value: unknown, turn: number): MemoryEntry {

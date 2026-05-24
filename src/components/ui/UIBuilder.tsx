@@ -85,6 +85,7 @@ export function UIBuilder({
         return (
           <ChatPanel
             messages={chatMessages}
+            channels={playerView?.chat_channels || []}
             onSendMessage={onSendMessage}
             currentPlayerId={currentPlayerId}
             onConvertToAction={onConvertToAction}
@@ -155,7 +156,7 @@ export function UIBuilder({
       case "FactionPanel":
         return (
           <FactionPanel
-            factions={storyBible?.factions || []}
+            factions={playerView?.visible_factions || []}
             memberLabels={Object.fromEntries([
               ...(storyBible?.roles.map((role) => [role.id, role.name] as const) || []),
               ...(storyBible?.npcs.map((npc) => [npc.id, npc.name] as const) || []),

@@ -11,8 +11,19 @@ import type {
   WorldState,
 } from "@/types";
 import { getActionCategory } from "@/types";
+import { getDeathConsequenceMode, nonLethalFailureLabel } from "./deathPolicy";
 
-const INVESTIGATION_ACTIONS: ActionType[] = ["investigate", "search", "track", "eavesdrop", "interrogate", "decode"];
+const INVESTIGATION_ACTIONS: ActionType[] = [
+  "investigate",
+  "search",
+  "track",
+  "eavesdrop",
+  "interrogate",
+  "decode",
+  "spy",
+  "divination",
+  "gather_intelligence",
+];
 const SOCIAL_ACTIONS: ActionType[] = ["talk", "persuade", "threaten", "deceive", "ally", "betray", "confess"];
 const SUCCESS_RATE_FLOOR = 35;
 
@@ -27,7 +38,7 @@ export function processPlayerAction(
   bible: StoryBible
 ): RuleResult {
   const updates: StateUpdate[] = [];
-  const permissionCheck = checkPermission(action);
+  const permissionCheck = checkPermission(action, bible);
 
   if (!permissionCheck.allowed) {
     return {
@@ -111,12 +122,63 @@ export function processNPCAction(
   };
 }
 
-function checkPermission(action: StructuredAction): { allowed: boolean; reason: string } {
+function checkPermission(action: StructuredAction, bible: StoryBible): { allowed: boolean; reason: string } {
+  const disabled = bible.runtime_modules?.disabled_action_types.includes(action.action_type);
+  const canInterpretAsGenreConsequence =
+    disabled &&
+    bible.runtime_modules?.consequence_mode !== "lethal" &&
+    ["attack", "assassinate", "execute", "sacrifice", "duel", "ambush"].includes(action.action_type);
+  if (disabled && !canInterpretAsGenreConsequence) {
+    return {
+      allowed: false,
+      reason: `当前剧本类型不启用「${actionLabel(action.action_type)}」模块，请改用符合题材的关系、调查或社交行动。`,
+    };
+  }
   const restrictedActions = ["coup", "assassinate", "impeach"];
   if (restrictedActions.includes(action.action_type) && action.risk_level !== "high") {
     return { allowed: false, reason: "This action is too risky without a high-risk commitment." };
   }
   return { allowed: true, reason: "" };
+}
+
+function actionLabel(actionType: string): string {
+  const labels: Record<string, string> = {
+    talk: "交谈",
+    persuade: "说服",
+    threaten: "威胁",
+    deceive: "欺骗",
+    ally: "结盟",
+    betray: "背叛",
+    confess: "坦白",
+    investigate: "调查",
+    search: "搜索",
+    track: "追踪",
+    eavesdrop: "偷听",
+    interrogate: "盘问",
+    decode: "解读",
+    spy: "侦察",
+    divination: "占卜",
+    gather_intelligence: "收集情报",
+    command: "指挥",
+    summon_meeting: "召集会议",
+    gain_support: "争取支持",
+    coup: "夺权",
+    impeach: "弹劾",
+    appoint: "任命",
+    attack: "攻击",
+    assassinate: "刺杀",
+    duel: "决斗",
+    ambush: "伏击",
+    defend: "防守",
+    execute: "处刑",
+    sacrifice: "献祭",
+    buy: "收买",
+    trade: "交易",
+    steal: "偷取",
+    transport: "转移",
+    build: "建造",
+  };
+  return labels[actionType] || actionType;
 }
 
 function npcProposalToStructuredAction(proposal: ActionProposal): StructuredAction {
@@ -160,6 +222,7 @@ function calculateRoll(
   // relationship_bonus + world_state_modifier + npc_interference_modifier - risk_penalty.
   modifiers.push({ source: "base_success_rate", value: 50, reason: "base success rate" });
   pushRiskModifier(action, modifiers);
+  pushCharacterSkillModifier(action, bible, modifiers);
   pushPlayerAbilityModifier(action, bible, modifiers);
   pushEvidenceModifier(action, state, modifiers);
   pushRelationshipModifier(action, state, modifiers);
@@ -189,11 +252,39 @@ function pushPlayerAbilityModifier(action: StructuredAction, bible: StoryBible, 
   }
 }
 
+function pushCharacterSkillModifier(action: StructuredAction, bible: StoryBible, modifiers: Modifier[]): void {
+  const model = bible.character_models?.find((item) => item.id === action.actor_id);
+  if (!model) return;
+  const category = getActionCategory(action.action_type);
+  const base = model.attributes.base;
+  const genre = model.attributes.genre_specific;
+  const skill =
+    category === "investigation"
+      ? Math.max(base.intelligence || 50, genre.deduction || 0)
+      : category === "combat"
+      ? base.combat || 50
+      : category === "political"
+      ? Math.max(base.influence || 50, genre.authority || 0, genre.prestige || 0)
+      : category === "resource"
+      ? base.wealth || 50
+      : Math.max(base.influence || 50, base.reputation || 50);
+  modifiers.push({
+    source: "character_skill",
+    value: Math.round((skill - 50) / 4),
+    reason: "structured character attribute",
+  });
+}
+
 function pushEvidenceModifier(action: StructuredAction, state: WorldState, modifiers: Modifier[]): void {
   if (!INVESTIGATION_ACTIONS.includes(action.action_type)) return;
-  const evidenceCount = state.knowledge_state.player_knowledge[action.actor_id]?.evidence.length || 0;
+  const knowledge = state.knowledge_state.player_knowledge[action.actor_id];
+  const evidenceCount = knowledge?.evidence.length || 0;
   if (evidenceCount > 0) {
-    modifiers.push({ source: "evidence_bonus", value: Math.min(15, evidenceCount * 3), reason: "known evidence" });
+    modifiers.push({ source: "item_bonus", value: Math.min(15, evidenceCount * 3), reason: "known evidence" });
+  }
+  const clueCount = knowledge?.discovered_clues.length || 0;
+  if (clueCount > 0) {
+    modifiers.push({ source: "item_bonus", value: Math.min(10, clueCount * 2), reason: "discovered clues" });
   }
 }
 
@@ -366,7 +457,16 @@ function generateSuccessUpdates(
   updates.push({ type: "add_known_fact", target: action.actor_id, fact_id: buildActionFact(action, bible, state) });
 
   if (INVESTIGATION_ACTIONS.includes(action.action_type)) {
+    const discoveredFact = pickDiscoverableFact(action, bible, state);
     updates.push({ type: "add_evidence", target: action.actor_id, fact_id: buildEvidenceFact(action, bible, state) });
+    updates.push({
+      type: "add_discovered_clue",
+      target: action.actor_id,
+      fact_id: discoveredFact.id,
+      value: action.action_type,
+      delta: discoveredFact.confidence,
+    });
+    updates.push({ type: "add_known_fact", target: action.actor_id, fact_id: discoveredFact.content });
     pushMetricChange(updates, findProgressMetricId(bible), progressDeltaForAction(action));
   }
 
@@ -376,15 +476,48 @@ function generateSuccessUpdates(
 
   if (["persuade", "ally", "confess"].includes(action.action_type) && action.target) {
     pushRelationshipChange(updates, action.actor_id, action.target, 10);
+    maybeUnlockPrivateChat(action, updates, "关系升温");
   }
 
   if (action.action_type === "talk" && action.target) {
     pushRelationshipChange(updates, action.actor_id, action.target, 5);
+    maybeUnlockPrivateChat(action, updates, "公开互动后建立联络");
   }
 
   if (["threaten", "deceive", "betray"].includes(action.action_type) && action.target) {
     pushRelationshipChange(updates, action.actor_id, action.target, -15);
     pushMetricChange(updates, findPressureMetricId(bible), 10);
+  }
+
+  if (["assassinate", "execute", "sacrifice"].includes(action.action_type) && action.target) {
+    const deathMode = getDeathConsequenceMode(bible);
+    if (deathMode !== "lethal") {
+      const label = nonLethalFailureLabel(bible);
+      if (deathMode !== "comic_setback") {
+        updates.push({
+          type: "set_character_status",
+          target: action.target,
+          value: deathMode === "romance_failure" ? "defeated" : "setback",
+          fact_id: label,
+          metric: action.intent,
+        });
+      }
+      updates.push({
+        type: "add_known_fact",
+        target: action.actor_id,
+        fact_id: `${label}：该剧本模块不启用角色死亡，系统将该行动解释为符合题材的非致命后果。`,
+      });
+      pushMetricChange(updates, findMetricIdOptional(bible, ["trust"]), -15);
+      pushMetricChange(updates, findMetricIdOptional(bible, ["suspicion", "pressure"]), 10);
+      return;
+    }
+    updates.push({
+      type: "set_character_status",
+      target: action.target,
+      value: "dead",
+      fact_id: action.action_type,
+      metric: action.intent,
+    });
   }
 
   if (action.intent === "stop_ritual" || action.method === "ritual_interruption") {
@@ -415,6 +548,17 @@ function generateFailureUpdates(
 ): void {
   pushMetricChange(updates, findPressureMetricId(bible), 5);
   if (action.risk_level === "high") pushMetricChange(updates, findStabilityMetricId(bible), -5);
+  if (INVESTIGATION_ACTIONS.includes(action.action_type)) {
+    updates.push({
+      type: "add_false_information",
+      target: action.actor_id,
+      fact_id: `misleading_${action.action_type}_${Date.now()}`,
+      value: `这条线索暂时无法确认，可能是误导信息：${formatEntityName(action.target, bible, state)}附近的说法互相矛盾。`,
+      metric: action.action_type,
+      delta: 45,
+    });
+    pushMetricChange(updates, findMetricIdOptional(bible, ["suspicion", "pressure"]), 5);
+  }
   if (["stealth_disguise", "sneak"].includes(action.method)) {
     updates.push({
       type: "reveal_information",
@@ -422,6 +566,49 @@ function generateFailureUpdates(
       value: `${formatEntityName(action.actor_id, bible, state)} was spotted near ${formatEntityName(action.target, bible, state)}.`,
     });
   }
+}
+
+function maybeUnlockPrivateChat(action: StructuredAction, updates: StateUpdate[], reason: string): void {
+  if (!action.target || action.target === action.actor_id || action.target === "self_goal") return;
+  updates.push({
+    type: "unlock_private_chat",
+    value: [action.actor_id, action.target],
+    fact_id: reason,
+  });
+}
+
+function pickDiscoverableFact(
+  action: StructuredAction,
+  bible: StoryBible,
+  state: WorldState
+): { id: string; content: string; confidence: number } {
+  const known = new Set([
+    ...(state.knowledge_state.player_knowledge[action.actor_id]?.known_facts || []),
+    ...(state.knowledge_state.player_knowledge[action.actor_id]?.discovered_clues || []),
+  ]);
+  const targetText = String(action.target || "").toLowerCase();
+  const fact = (bible.knowledge_graph?.facts || [])
+    .filter((item) => item.visibility !== "public" && !known.has(item.id) && !known.has(item.content))
+    .find((item) => {
+      const haystack = `${item.id} ${item.title} ${item.content}`.toLowerCase();
+      return targetText.length > 2 && haystack.includes(targetText);
+    }) ||
+    (bible.knowledge_graph?.facts || []).find((item) => item.visibility !== "public" && !known.has(item.id) && !known.has(item.content)) ||
+    bible.knowledge.find((item) => item.category !== "public" && !known.has(item.id) && !known.has(item.content));
+
+  if (fact) {
+    return {
+      id: fact.id,
+      content: fact.content,
+      confidence: 75,
+    };
+  }
+
+  return {
+    id: `discovery_${action.action_type}_${Date.now()}`,
+    content: `你围绕${formatEntityName(action.target, bible, state)}获得了一条可继续核验的新线索。`,
+    confidence: 65,
+  };
 }
 
 function recordVisiblePlayerAction(

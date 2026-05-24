@@ -148,6 +148,9 @@ export default function RoomPage() {
                 sender_name: "GM",
                 content: openingContent,
                 timestamp: new Date().toISOString(),
+                channel_id: "public",
+                channel_type: "public",
+                highlighted: true,
               },
             });
           }
@@ -168,7 +171,7 @@ export default function RoomPage() {
 
   // Send chat message
   const handleSendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, channelId = "public") => {
       const tempMsg: ChatMessage = {
         id: `msg_temp_${Date.now()}`,
         room_id: roomId,
@@ -177,6 +180,8 @@ export default function RoomPage() {
         sender_name: playerName,
         content,
         timestamp: new Date().toISOString(),
+        channel_id: channelId,
+        channel_type: channelId.startsWith("faction:") ? "faction" : channelId.startsWith("pm:") ? "private" : "public",
       };
       dispatch({ type: "ADD_CHAT_MESSAGE", message: tempMsg });
 
@@ -184,7 +189,7 @@ export default function RoomPage() {
         const res = await fetch(`/api/rooms/${roomId}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ player_id: playerId, content }),
+          body: JSON.stringify({ player_id: playerId, content, channel_id: channelId }),
         });
         const data = await res.json();
         if (data.success && data.action_hint) {
