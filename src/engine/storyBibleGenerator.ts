@@ -170,8 +170,17 @@ function buildPrivateBackground(name: string, seed: StorySeed): string {
 }
 
 function buildPublicGoal(name: string, seed: StorySeed, suggested?: string): string {
-  if (suggested && !suggested.includes("个人目标")) return suggested;
+  if (suggested && isValidGoal(suggested)) return suggested;
   const profile = getProfile(seed);
+  
+  // Mystery/Investigation genre (民宿、推理、悬疑)
+  if (profile === "mystery" || /民宿|客栈|旅馆|酒店|推理|悬疑|侦探|真相/.test(seed.genre || "")) {
+    if (/老板|店主|经理/.test(name)) return "维护场所声誉，配合调查尽快平息事件";
+    if (/客人|住客|旅客/.test(name)) return "洗清嫌疑，安全离开当前环境";
+    if (/知情|目击者/.test(name)) return "在保护自身安全的前提下提供线索";
+    return "查清事件真相，证明自己的清白";
+  }
+  
   if (profile === "campus") {
     if (/班长|学生会/.test(name)) return "控制流言扩散，恢复班级和学生会秩序";
     if (/转校|新生/.test(name)) return "洗清误会，在新环境里争取可信任的关系";
@@ -181,11 +190,23 @@ function buildPublicGoal(name: string, seed: StorySeed, suggested?: string): str
   if (profile === "sci_fi") return "完成任务并控制异常风险";
   if (profile === "wuxia") return "查清江湖风波真相，维护自己的名声与立场";
   if (profile === "political") return "争取支持，稳定局势并掌握关键证据";
-  return seed.ending ? `推动局势走向：${seed.ending}` : "在混乱中取得主动权";
+  if (profile === "horror") return "生存下来并逃离危险环境";
+  if (profile === "comedy") return "化解尴尬局面，让事情朝有趣的方向发展";
+  if (profile === "workplace") return "完成项目目标，同时维护职场关系";
+  
+  // Generic but specific goals - never use full ending description
+  const genericGoals = [
+    "在混乱中保护自身安全并找到可信的盟友",
+    "查清事件真相，避免成为替罪羊",
+    "争取关键人物的信任，获得行动空间",
+    "找到可以改变局势的关键证据或信息",
+    "在各方势力中保持平衡，等待最佳时机",
+  ];
+  return genericGoals[Math.floor(Math.random() * genericGoals.length)];
 }
 
 function buildSecretGoal(name: string, seed: StorySeed, suggested?: string): string {
-  if (suggested && !suggested.includes("隐藏动机")) return suggested;
+  if (suggested && isValidGoal(suggested)) return suggested;
   const profile = getProfile(seed);
   if (profile === "campus") {
     if (/转校|新生/.test(name)) return "找到真正散播流言的人，同时保住自己不愿公开的过去。";
@@ -197,7 +218,19 @@ function buildSecretGoal(name: string, seed: StorySeed, suggested?: string): str
   if (profile === "sci_fi") return "查清任务背后的隐瞒，即使这会挑战上级命令。";
   if (profile === "wuxia") return "解决一段旧怨，但不能让它吞掉你现在的选择。";
   if (profile === "political") return "暗中证明自己的判断，并找到可以改变权力平衡的关键筹码。";
-  return `守住你与“${shortText(seed.opening || "开场事件", 24)}”有关的私人秘密，并把它转化为谈判筹码。`;
+  if (profile === "horror") return "隐藏自己已经被影响或感染的事实，寻找自救方法。";
+  if (profile === "comedy") return "在不破坏关系的前提下，让对手出丑或承认错误。";
+  if (profile === "workplace") return "获取可以保护自己或威胁对手的关键把柄。";
+  
+  // Generic but specific secret goals - never use full opening description
+  const genericSecretGoals = [
+    "隐藏自己与核心事件的关联，同时收集对他人的把柄",
+    "找到可以证明自己清白或嫁祸他人的关键证据",
+    "在不暴露身份的情况下，影响事件走向对自己有利",
+    "利用信息差获取谈判筹码，确保最终全身而退",
+    "完成私人复仇或补偿，同时维持表面的无辜形象",
+  ];
+  return genericSecretGoals[Math.floor(Math.random() * genericSecretGoals.length)];
 }
 
 function buildInitialKnowledge(name: string, seed: StorySeed): string[] {
@@ -659,4 +692,40 @@ function summarizeOpening(seed: StorySeed): string {
 function shortText(text: string, max = 22): string {
   const trimmed = text.trim();
   return trimmed.length > max ? `${trimmed.slice(0, max)}...` : trimmed;
+}
+
+/**
+ * Check if a suggested goal is valid (not too vague or too long)
+ * Rejects goals that look like story summaries or contain generic placeholders
+ */
+function isValidGoal(goal: string): boolean {
+  if (!goal || goal.trim().length === 0) return false;
+  
+  // Reject if too long (likely a story summary)
+  if (goal.length > 60) return false;
+  
+  // Reject if contains story-summary indicators
+  const vagueIndicators = [
+    "推动局势走向",
+    "真凶浮出水面",
+    "执念幻影",
+    "众人坦诚",
+    "归于平静",
+    "当年间接害死",
+    "秘密曝光",
+    "天光破晓",
+    "众人离开",
+    "过往遗憾",
+    "同时找到能够",
+    "改变局势的筹码",
+  ];
+  if (vagueIndicators.some((indicator) => goal.includes(indicator))) {
+    return false;
+  }
+  
+  // Reject generic placeholders
+  const genericPlaceholders = ["个人目标", "隐藏动机", "关键秘密", "改变局势"];
+  if (genericPlaceholders.includes(goal.trim())) return false;
+  
+  return true;
 }
