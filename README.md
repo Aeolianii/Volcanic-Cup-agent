@@ -1,79 +1,113 @@
-﻿# AI Story Foundry
+# AI Story Foundry
 
-AI Story Foundry 鏄竴涓?AI 椹卞姩鐨勫浜轰簰鍔ㄥ彊浜嬪紩鎿庛€傜敤鎴疯緭鍏ユ晠浜嬪垱鎰忓悗锛岀郴缁熺敓鎴?Story Bible锛屽苟鍥寸粫 Story Bible 鏋勫缓鍔ㄦ€佽鍒欍€佸姩鎬?UI銆佸浜烘埧闂淬€丄I GM銆丄I NPC銆乄orld State 鍜屽缁撳眬娴佺▼銆?
-## 蹇€熷紑濮?
+AI Story Foundry 是一个 AI 驱动的多人互动叙事引擎。用户输入故事创意后，系统生成 Story Bible，并围绕 Story Bible 构建动态规则、动态 UI、多人房间、AI GM、AI NPC、World State 和多结局流程。
+
+## 快速开始
+
 ```bash
 npm install
 npm run dev
 ```
 
-璁块棶 `http://localhost:3000`銆?
-鐢熶骇妯″紡鏈湴娴嬭瘯锛?
+访问 `http://localhost:3000`。
+
+生产模式本地测试：
+
 ```bash
 npm run build
 npm run start
 ```
 
-## 鎶€鏈爤
+## 技术栈
 
 - Frontend: Next.js 14 + React 18 + TypeScript + Tailwind CSS
 - Backend: Next.js API Routes
-- Realtime: Socket.IO 棰勭暀
-- Database: MVP 浣跨敤鍐呭瓨瀛樺偍锛屽悗缁彲鏇挎崲涓?PostgreSQL
+- Realtime: Socket.IO 预留
+- Database: MVP 使用内存存储，后续可替换为 PostgreSQL
 - AI: Mock Provider + OpenAI-compatible Chat Completions Provider
 
 ## LLM Provider
 
-搴旂敤鏀寔鍏煎 OpenAI Chat Completions 鐨勬ā鍨嬫湇鍔°€傚垱寤?`.env.local`锛?
+应用支持兼容 OpenAI Chat Completions 的模型服务。创建 `.env.local`：
+
 ```bash
 DEEPSEEK_API_KEY=your_api_key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-v4-pro
 ```
 
-閰嶇疆 `DEEPSEEK_API_KEY` 鍚庯紝GM 鍙欎簨銆丯PC 瑙勫垝銆佺粨灞€鍙欎簨鍜岃嚜鐢辫鍔ㄨВ鏋愪細浼樺厛璋冪敤鐪熷疄妯″瀷銆侱emo 鏁呬簨鍦ㄦā鍨嬩笉鍙敤鏃跺厑璁镐娇鐢ㄥ厹搴曚互淇濊瘉鍙帺锛涘鍏ユ晠浜嬪湪 AI 澶辫触鏃朵細鏄庣‘鎻愮ず鏈敓鎴愶紝涓嶇敤妯℃澘鍓ф儏鍐掑厖鐪熷疄鐢熸垚銆?
-## Demo 鏁呬簨锛氬け钀藉湥鏉箣澶?
-鐐瑰嚮棣栭〉鐨?Demo 鏁呬簨锛屾垨璁块棶 `/generate?demo=true`锛屽彲浠ョ洿鎺ヤ綋楠岄缃晠浜嬨€?
-- 绫诲瀷锛氳タ骞?+ 鏉冭皨 + 鎺ㄧ悊
-- 鐜╁瑙掕壊锛氱帇瀛愩€佸湥濂炽€佸埡瀹€侀獞澹?- NPC锛氬ぇ娉曞笀銆佽€佸浗鐜嬨€佷富鏁?- 鏍稿績浜嬩欢锛氬湥鏉け绐冦€佸湥娈胯皟鏌ャ€佸湴涓嬬キ鍧涘彂鐜般€佸ぇ娉曞笀浠紡銆佺帇鍥藉姩涔?- 缁撳眬锛氱帇鍥藉緱鏁戙€佸彜绁炶嫃閱掋€佺帇鏉冨穿濉屻€佸埡瀹㈤潻鍛芥垚鍔?
-## 鏍稿績鏋舵瀯鍘熷垯
+配置 `DEEPSEEK_API_KEY` 后，GM 叙事、NPC 规划、结局叙事和自由行动解析会优先调用真实模型。Demo 故事在模型不可用时允许使用兜底以保证可玩；导入故事在 AI 失败时会明确提示未生成，不用模板剧情冒充真实生成。
 
-1. Story Bible 鏄敮涓€鏁呬簨鏁版嵁婧愩€?2. World State 鏄敮涓€鐪熷疄涓栫晫鐘舵€佹簮銆?3. Rule Engine 鏄敮涓€鐘舵€佷慨鏀瑰叆鍙ｃ€?4. AI GM 鍙互璇诲彇瀹屾暣鏁呬簨鎽樿锛屼絾涓嶈兘鐩存帴淇敼 World State銆?5. AI NPC 鍙兘璇诲彇 Knowledge Filter 鐢熸垚鐨勫眬閮ㄨ閲庛€?6. 鐜╁ Chat銆丼uggested Actions銆丗ree Action 鏈€缁堥兘杞崲涓?StructuredAction銆?7. 鍓嶇 UI 涓嶇敱 AI 鐢熸垚浠ｇ爜锛岃€屾槸閫氳繃 Widget Registry 鏍规嵁 `ui_config` 鍔ㄦ€佹覆鏌撱€?
-## 娓告垙杩愯娴佺▼
+## Demo 故事：失落圣杯之夜
 
-1. AI GM 杈撳嚭褰撳墠鍓ф儏鍙欎簨銆?2. 鐜╁闃呰 NarrativePanel銆?3. 鐜╁鍙互鍦?ChatPanel 杩涜 RP 鍙戣█銆?4. 鐜╁鐐瑰嚮 Suggested Actions 鎴栧湪 FreeActionInput 杈撳叆鑷敱琛屽姩銆?5. Action Parser 灏嗚緭鍏ヨ浆鎹负 StructuredAction銆?6. Rule Engine 杩涜鏉冮檺銆侀闄┿€佹垚鍔熺巼鍜屽悗鏋滅粨绠椼€?7. World State Engine 搴旂敤鐘舵€佹洿鏂般€?8. Event Trigger System 妫€鏌ヤ簨浠惰Е鍙戙€?9. NPC Knowledge Filter 涓?NPC 鏋勯€犲眬閮ㄨ閲庛€?10. NPC Planner 鐢熸垚 NPC 琛屽姩鎻愭銆?11. NPC 琛屽姩杩涘叆 Rule Engine銆?12. Story Controller 鍒ゆ柇绔犺妭鎺ㄨ繘銆?13. Ending Judge 鍒ゆ柇缁撳眬銆?14. AI GM 鍩轰簬鏈€鏂扮姸鎬佺敓鎴愪笅涓€娈靛彊浜嬨€?
-## API 璺敱
+点击首页的 Demo 故事，或访问 `/generate?demo=true`，可以直接体验预置故事。
 
-| 鏂规硶 | 璺緞 | 鎻忚堪 |
+- 类型：西幻 + 权谋 + 推理
+- 玩家角色：王子、圣女、刺客、骑士
+- NPC：大法师、老国王、主教
+- 核心事件：圣杯失窃、圣殿调查、地下祭坛发现、大法师仪式、王国动乱
+- 结局：王国得救、古神苏醒、王权崩塌、刺客革命成功
+
+## 核心架构原则
+
+1. Story Bible 是唯一故事数据源。
+2. World State 是唯一真实世界状态源。
+3. Rule Engine 是唯一状态修改入口。
+4. AI GM 可以读取完整故事摘要，但不能直接修改 World State。
+5. AI NPC 只能读取 Knowledge Filter 生成的局部视野。
+6. 玩家 Chat、Suggested Actions、Free Action 最终都转换为 StructuredAction。
+7. 前端 UI 不由 AI 生成代码，而是通过 Widget Registry 根据 `ui_config` 动态渲染。
+
+## 游戏运行流程
+
+1. AI GM 输出当前剧情叙事。
+2. 玩家阅读 NarrativePanel。
+3. 玩家可以在 ChatPanel 进行 RP 发言。
+4. 玩家点击 Suggested Actions 或在 FreeActionInput 输入自由行动。
+5. Action Parser 将输入转换为 StructuredAction。
+6. Rule Engine 进行权限、风险、成功率和后果结算。
+7. World State Engine 应用状态更新。
+8. Event Trigger System 检查事件触发。
+9. NPC Knowledge Filter 为 NPC 构造局部视野。
+10. NPC Planner 生成 NPC 行动提案。
+11. NPC 行动进入 Rule Engine。
+12. Story Controller 判断章节推进。
+13. Ending Judge 判断结局。
+14. AI GM 基于最新状态生成下一段叙事。
+
+## API 路由
+
+| 方法 | 路径 | 描述 |
 | --- | --- | --- |
-| POST | `/api/stories/generate` | 鐢熸垚 Story Bible |
-| POST | `/api/stories/validate` | 鏍￠獙 Story Bible |
-| POST | `/api/rooms` | 鍒涘缓鎴块棿 |
-| POST | `/api/rooms/:roomId/join` | 鍔犲叆鎴块棿 |
-| POST | `/api/rooms/:roomId/select-role` | 閫夋嫨瑙掕壊 |
-| POST | `/api/rooms/:roomId/start` | 寮€濮嬫晠浜?|
-| GET | `/api/rooms/:roomId/state` | 鑾峰彇鎴块棿鐘舵€?|
-| GET | `/api/rooms/:roomId/players/:playerId/view` | 鑾峰彇鐜╁瑙嗚 |
-| POST | `/api/rooms/:roomId/chat` | 鎻愪氦 RP 鑱婂ぉ |
-| POST | `/api/rooms/:roomId/actions` | 鎻愪氦姝ｅ紡琛屽姩 |
-| POST | `/api/rooms/:roomId/npc-turn` | 鎵ц NPC 鍥炲悎 |
-| POST | `/api/rooms/:roomId/endings/check` | 妫€鏌ョ粨灞€ |
+| POST | `/api/stories/generate` | 生成 Story Bible |
+| POST | `/api/stories/validate` | 校验 Story Bible |
+| POST | `/api/rooms` | 创建房间 |
+| POST | `/api/rooms/:roomId/join` | 加入房间 |
+| POST | `/api/rooms/:roomId/select-role` | 选择角色 |
+| POST | `/api/rooms/:roomId/start` | 开始故事 |
+| GET | `/api/rooms/:roomId/state` | 获取房间状态 |
+| GET | `/api/rooms/:roomId/players/:playerId/view` | 获取玩家视角 |
+| POST | `/api/rooms/:roomId/chat` | 提交 RP 聊天 |
+| POST | `/api/rooms/:roomId/actions` | 提交正式行动 |
+| POST | `/api/rooms/:roomId/npc-turn` | 执行 NPC 回合 |
+| POST | `/api/rooms/:roomId/endings/check` | 检查结局 |
 
-## 椤圭洰缁撴瀯
+## 项目结构
 
 ```text
 src/
-  app/                 Next.js App Router 椤甸潰涓?API
+  app/                 Next.js App Router 页面与 API
   components/
-    widgets/           娓告垙闈㈡澘缁勪欢
-    ui/                UIBuilder 绛?UI 缁勮閫昏緫
-  engine/              Story Bible銆丷ule Engine銆丄I GM銆丯PC銆佷簨浠跺拰缁撳眬閫昏緫
-  registry/            Widget Registry 涓?Rule Pack Registry
-  types/               TypeScript 绫诲瀷瀹氫箟
-  mock/                Demo Story Bible 涓?Mock AI Provider
-  lib/                 鎴块棿绠＄悊銆丄I Provider銆佸墠绔姸鎬?```
+    widgets/           游戏面板组件
+    ui/                UIBuilder 等 UI 组装逻辑
+  engine/              Story Bible、Rule Engine、AI GM、NPC、事件和结局逻辑
+  registry/            Widget Registry 与 Rule Pack Registry
+  types/               TypeScript 类型定义
+  mock/                Demo Story Bible 与 Mock AI Provider
+  lib/                 房间管理、AI Provider、前端状态
+```
 
-## 鐗堟湰鏇存柊
+## 版本更新
 
 ### v1.5 - 2026-05-24
 
@@ -96,51 +130,107 @@ src/
 - 已知事实和线索增加展示清洗，避免内部 id、英文调试文本和状态 key 泄露给玩家。
 
 完整更新日志见 [CHANGELOG.md](CHANGELOG.md)。
+
 ### v1.4 - 2026-05-24
 
-#### AI GM 鎺ㄨ繘鎺ㄧ悊
+#### AI GM 推进推理
 
-- 鏂板 `progression_guidance` 涓婁笅鏂囷紝AI GM 浼氳鍙栨湭瑙﹀彂浜嬩欢銆佺己澶辨潯浠躲€佸叧閿寚鏍囧拰宸蹭娇鐢ㄨ鍔ㄦ潵鐢熸垚涓嬩竴姝ユ帹鑽愩€?- 鎺ㄨ崘琛屽姩蹇呴』鍥寸粫 World State 鐨勪簨浠堕摼缂哄彛锛屾垨鎵挎帴涓婁竴鎴愬姛琛屽姩褰㈡垚鍏宠仈浼樺娍銆?- LLM prompt 寮哄寲涓衡€滆兘鎺ㄨ繘浜嬩欢銆佹寚鏍囨垨缁撳眬鈥濈殑琛屽姩寤鸿锛屽噺灏戝鍏ユ晠浜嬮噷鐨勯噸澶嶆ā鏉挎寜閽€?
-#### 閫氱敤 Rule Engine 鎺ㄨ繘
+- 新增 `progression_guidance` 上下文，AI GM 会读取未触发事件、缺失条件、关键指标和已使用行动来生成下一步推荐。
+- 推荐行动必须围绕 World State 的事件链缺口，或承接上一成功行动形成关联优势。
+- LLM prompt 强化为“能推进事件、指标或结局”的行动建议，减少导入故事里的重复模板按钮。
 
-- Rule Engine 鑷姩璇嗗埆 Story Bible 涓殑杩涘害銆佺ǔ瀹氥€佸帇鍔?褰卞搷銆佷俊浠?鍏崇郴绫绘寚鏍囷紝涓嶅啀鍙€傞厤鍦ｆ澂 Demo銆?- 璋冩煡銆佷氦璋堛€佸叕寮€璇佹嵁銆佹緞娓呫€侀樆姝€佺ǔ瀹氬眬鍔裤€佽祫婧愬噯澶囧拰缁撳眬鏀舵潫琛屽姩浼氭寜瀵煎叆鏁呬簨鑷繁鐨勬寚鏍囨帹杩涖€?- 鏀舵潫绫昏鍔ㄤ細鍚戜紭鍏堢骇鏈€楂樼殑缁撳眬鏉′欢闈犳嫝锛屽府鍔╂晠浜嬭繘鍏ュ彲鍒ゅ畾缁撳眬鍖洪棿銆?
-#### 琛屽姩鎴愬姛鐜囦笌杩炴惡浼樺娍
+#### 通用 Rule Engine 推进
 
-- 闄嶄綆楂橀闄╄鍔ㄩ棬妲涳紝骞朵繚鐣欎綆/涓闄╂垚鍔熺巼浼樺寲銆?- 鎴愬姛琛屽姩浼氳褰曞姩閲忋€佺洰鏍囬攣瀹氥€佺被鍒紭鍔垮拰宸插畬鎴愯鍔ㄧ鍚嶃€?- 璋冩煡鎴愬姛浼氬寮哄悗缁ぞ浜ゅ拰鏀挎不/鎸囨尌绫昏鍔紝璁┾€滃厛閾哄灚銆佸啀鎺ㄨ繘鈥濈殑琛屽姩閾炬洿鍙潬銆?
-#### 鎺ㄨ崘琛屽姩涓庝簨浠舵帹杩?
-- 鎺ㄨ崘琛屽姩浼氳繃婊や笂涓€琛屽姩鍜屽凡瀹屾垚琛屽姩锛屽苟鎸夋帹杩涗环鍊兼帓搴忋€?- 浜嬩欢鐨?`add_knowledge` 鏁堟灉浼氬悓姝ュ啓鍏ュ悗缁Е鍙戞墍闇€ flag锛岄伩鍏嶆嬁鍒扮嚎绱絾浜嬩欢閾炬柇寮€銆?- Demo 鍙粠鐪熺浉杩涘害 15 鎺ㄨ繘鍒?100锛涘鍏ユ晠浜嬪凡楠岃瘉鏍″洯瑷€鎯呬簨浠堕摼鍙繛缁帹杩涖€?
-瀹屾暣鏇存柊鏃ュ織瑙?[CHANGELOG.md](CHANGELOG.md)銆?
+- Rule Engine 自动识别 Story Bible 中的进度、稳定、压力/影响、信任/关系类指标，不再只适配圣杯 Demo。
+- 调查、交谈、公开证据、澄清、阻止、稳定局势、资源准备和结局收束行动会按导入故事自己的指标推进。
+- 收束类行动会向优先级最高的结局条件靠拢，帮助故事进入可判定结局区间。
+
+#### 行动成功率与连携优势
+
+- 降低高风险行动门槛，并保留低/中风险成功率优化。
+- 成功行动会记录动量、目标锁定、类别优势和已完成行动签名。
+- 调查成功会增强后续社交和政治/指挥类行动，让“先铺垫、再推进”的行动链更可靠。
+
+#### 推荐行动与事件推进
+
+- 推荐行动会过滤上一行动和已完成行动，并按推进价值排序。
+- 事件的 `add_knowledge` 效果会同步写入后续触发所需 flag，避免拿到线索但事件链断开。
+- Demo 可从真相进度 15 推进到 100；导入故事已验证校园言情事件链可连续推进。
+
+完整更新日志见 [CHANGELOG.md](CHANGELOG.md)。
+
 ### v1.3 - 2026-05-24
 
-#### 闅愯棌鎸囨爣涓庢ā绯婂寲鍙嶉
+#### 隐藏指标与模糊化反馈
 
-- 鏂板闅愯棌/鏉′欢鎸囨爣绯荤粺锛屽悗鍙拌褰曠湡瀹炴暟鍊硷紝鐜╁鍙欎簨涓互"鏆楁祦鍙樺寲"褰㈠紡鍛堢幇妯＄硦鍖栧弽棣堛€?- AI GM 涓婁笅鏂囬€氳繃 `implicit_effects` 浼犻€掗殣钘忔寚鏍囨晥鏋滐紝绂佹杈撳嚭闅愯棌鎸囨爣鍚嶇О鍜屽叿浣撴暟鍊笺€?- GM 鍙欎簨"灞€鍔垮彉鍖?浠呮樉绀哄叕寮€鎸囨爣锛岄殣钘忔寚鏍囦笉鍐嶆硠闇插埌鐜╁鏂囨湰銆?
-#### 鎺ㄨ崘琛屽姩鐢熸垚鏀硅繘
+- 新增隐藏/条件指标系统，后台记录真实数值，玩家叙事中以"暗流变化"形式呈现模糊化反馈。
+- AI GM 上下文通过 `implicit_effects` 传递隐藏指标效果，禁止输出隐藏指标名称和具体数值。
+- GM 叙事"局势变化"仅显示公开指标，隐藏指标不再泄露到玩家文本。
 
-- 瀵煎叆鏁呬簨鐨勬帹鑽愯鍔ㄥ繀椤绘潵鑷?AI锛岀粨鍚?Story Bible銆乄orld State銆佸綋鍓嶇珷鑺傚拰涓婁竴琛屽姩缁撴灉鐢熸垚锛屼笉鍐嶄娇鐢ㄦ湰鍦版ā鏉垮啋鍏呫€?- 寮哄寲 LLM 鎺ㄨ崘琛屽姩 prompt锛岃姹傚熀浜庡綋鍓嶅墽鎯呯敓鎴愶紝涓嶅緱閲嶅涓婁竴琛屽姩銆?- 淇鍏滃簳鍙欎簨璺緞婕忎紶 `lastAction` 瀵艰嚧鎺ㄨ崘琛屽姩閲嶅鐨勯棶棰橈紱鎻愪氦澶辫触鏃舵仮澶嶅師鍒楄〃銆?
-#### Rule Engine 涓庤鍔ㄤ紭鍔跨郴缁?
-- 鏂板琛屽姩浼樺娍鏈哄埗锛氭垚鍔熻鍔ㄥ悗绉疮鍔ㄩ噺銆佺洰鏍囬攣瀹氬拰绫诲埆浼樺娍锛屼负鍚庣画琛屽姩鎻愪緵楠伴潰鍔犳垚銆?- 璋冩暣椋庨櫓绛夌骇闃堝€硷紝鏁翠綋鎻愬崌琛屽姩鎴愬姛鐜囥€?- 璋冩煡绫诲拰绀句氦绫昏鍔ㄦ牴鎹柟娉曞拰鐩爣宸紓鍖栨帹杩涚湡鐩歌繘搴︺€?
-#### 浜嬩欢鏁堟灉涓庣珷鑺傛帹杩?
-- 浜嬩欢瑙﹀彂鍚庤嚜鍔ㄥ簲鐢ㄤ簨浠舵晥鏋滃埌 World State锛屾敮鎸佽缃爣璁般€佷慨鏀规寚鏍囥€佹坊鍔犵煡璇嗗拰鍒囨崲浣嶇疆銆?- 琛屽姩缁撶畻鍚庢鏌ョ珷鑺傛帹杩涙潯浠讹紝婊¤冻鏃惰嚜鍔ㄥ垏鎹㈢珷鑺傘€?
-#### AI Provider 涓?GM 鍙欎簨
+#### 推荐行动生成改进
 
-- 绉婚櫎 Mock Provider 鑷姩闄嶇骇閫昏緫锛孉I 澶辫触鏃舵槑纭繑鍥為敊璇€?- GM 鍙欎簨鏀圭敤涓ユ牸 JSON 瑙ｆ瀽锛屼笉鍐嶆彁渚?mock fallback銆?- AI GM 涓婁笅鏂囦腑鎸囨爣浣跨敤 Story Bible label 鎻愬崌鍙欎簨鍙鎬с€?
-#### Demo锛氬け钀藉湥鏉箣澶?
-- 淇杩介棶涓绘暀鎺ㄨ崘琛屽姩鏂囨锛屾敼涓?鍚戜富鏁欐牳瀵瑰ぇ娉曞笀璇存硶"骞舵惡甯︾嚎绱笂涓嬫枃銆?- 楠岃瘉鎺ㄨ崘琛屽姩鍒锋柊涓嶅啀閲嶅宸叉墽琛岀殑琛屽姩銆?
-瀹屾暣鏇存柊鏃ュ織瑙?[CHANGELOG.md](CHANGELOG.md)銆?
+- 导入故事的推荐行动必须来自 AI，结合 Story Bible、World State、当前章节和上一行动结果生成，不再使用本地模板冒充。
+- 强化 LLM 推荐行动 prompt，要求基于当前剧情生成，不得重复上一行动。
+- 修复兜底叙事路径漏传 `lastAction` 导致推荐行动重复的问题；提交失败时恢复原列表。
+
+#### Rule Engine 与行动优势系统
+
+- 新增行动优势机制：成功行动后积累动量、目标锁定和类别优势，为后续行动提供骰面加成。
+- 调整风险等级阈值，整体提升行动成功率。
+- 调查类和社交类行动根据方法和目标差异化推进真相进度。
+
+#### 事件效果与章节推进
+
+- 事件触发后自动应用事件效果到 World State，支持设置标记、修改指标、添加知识和切换位置。
+- 行动结算后检查章节推进条件，满足时自动切换章节。
+
+#### AI Provider 与 GM 叙事
+
+- 移除 Mock Provider 自动降级逻辑，AI 失败时明确返回错误。
+- GM 叙事改用严格 JSON 解析，不再提供 mock fallback。
+- AI GM 上下文中指标使用 Story Bible label 提升叙事可读性。
+
+#### Demo：失落圣杯之夜
+
+- 修复追问主教推荐行动文案，改为"向主教核对大法师说法"并携带线索上下文。
+- 验证推荐行动刷新不再重复已执行的行动。
+
+完整更新日志见 [CHANGELOG.md](CHANGELOG.md)。
+
 ### v1.2 - 2026-05-24
 
-#### Story Bible 涓庢晠浜嬬敓鎴?
-- 鐢熸垚鍐呭鏇磋创鍚堢帺瀹惰緭鍏ョ殑棰樻潗銆佷汉鐗╁叧绯诲拰涓栫晫璁惧畾锛屽噺灏戞牎鍥?瑷€鎯呯瓑鏁呬簨琚‖濂楄タ骞绘潈璋嬫ā鏉跨殑闂銆?- 寮哄寲 Story Bible 鏍￠獙锛岃鐩栬鑹茬洰鏍囥€丯PC 鐭ヨ瘑鑼冨洿銆乄idget 閰嶇疆銆佺粨灞€鏁伴噺鍜岃闂潈闄愩€?- Demo 鍙互浣跨敤鍙帺鍏滃簳锛涘鍏ユ晠浜?AI 澶辫触鏃舵槑纭彁绀烘湭鐢熸垚銆?
-#### AI GM銆佽鍒欑粨绠椾笌 World State
+#### Story Bible 与故事生成
 
-- 鐜╁琛屽姩缁撴灉浼氳繘鍏?AI GM 涓婁笅鏂囷紝GM 鍙欎簨浼氱粨鍚?Rule Engine銆乄orld State銆佷簨浠跺拰鏂板鎯呮姤鐢熸垚鍏蜂綋鍙嶉銆?- 淇浜嬩欢 ID銆佺洰鏍囧埆鍚嶃€佹寚鏍?key銆佺帺瀹?ID 绛夊唴閮ㄥ弬鏁版硠闇插埌鐜╁鏂囨湰鐨勯棶棰樸€?- 缁熶竴瑙勮寖琛屽姩鐩爣锛屾敮鎸?NPC銆佽鑹层€佷簨浠躲€佸綋鍓嶄綅缃拰鍏宠仈鍦扮偣绛夌洰鏍囥€?- 鏀硅繘绀句氦銆佽皟鏌ャ€佽嚜鎴戞⒊鐞嗐€佺嚎绱€佹寚鏍囥€佸叧绯诲拰浜嬩欢缁撶畻锛岃琛屽姩缁撴灉鏇村叿浣撱€?
-#### 鐜╁浜や簰涓庢€ц兘
+- 生成内容更贴合玩家输入的题材、人物关系和世界设定，减少校园/言情等故事被硬套西幻权谋模板的问题。
+- 强化 Story Bible 校验，覆盖角色目标、NPC 知识范围、Widget 配置、结局数量和访问权限。
+- Demo 可以使用可玩兜底；导入故事 AI 失败时明确提示未生成。
 
-- 鎺ㄨ崘琛屽姩鍜岃嚜鐢辫鍔ㄦ彁浜ゅ悗鏄剧ず鍗虫椂澶勭悊涓弽棣堛€?- 鎺ㄨ崘琛屽姩浼氭牴鎹渶鏂?World State 鍒锋柊锛岀偣鍑昏繃鐨勬棫琛屽姩浼氳杩囨护銆?- 淇鎺ㄨ崘琛屽姩鍒楄〃涓嶅疄鏃舵洿鏂扮殑闂锛氱偣鍑诲悗绔嬪嵆浠?UI 绉婚櫎鏃ц鍔紝缁撶畻瀹屾垚鍚庣敤鏂版帹鑽愭浛鎹紝澶辫触鏃舵仮澶嶅師鍒楄〃銆?- 琛屽姩缁撶畻鍚庡苟琛屾墽琛岀粨灞€鍒ゆ柇鍜?GM 鍙欎簨鐢熸垚锛屽噺灏戠瓑寰呫€?- 琛屽姩鍚庣殑 GM 鍙欎簨浣跨敤骞跺彂楂?token AI 璇锋眰锛屼紭鍏堥噰鐢ㄧ涓€涓悎娉?JSON 缁撴灉銆?
-#### 鐜╁鐣岄潰
+#### AI GM、规则结算与 World State
 
-- 淇 GM 鍚嶇О琚鏄剧ず涓衡€滈€氱敤姹借溅鈥濄€?- 宸茬煡浜嬪疄鏀寔灞曞紑鏌ョ湅瀹屾暣鍒楄〃銆?- 浼樺寲琛屽姩闈㈡澘銆佽嚜鐢辫鍔ㄨ緭鍏ユ鍜?UI Builder 鐨勭鐢ㄣ€佸鐞嗕腑銆佹帹鑽愬埛鏂扮姸鎬併€?- 娓呯悊璇佹嵁銆佸凡鐭ヤ簨瀹炪€佽鑹蹭俊鎭拰鍙欎簨鏂囨湰涓殑鍐呴儴鍙傛暟銆?
-#### Demo锛氬け钀藉湥鏉箣澶?
-- 鎵撻€氬垱寤烘埧闂淬€侀€夎銆佸紑濮嬫晠浜嬨€佽鍔ㄦ彁浜ゃ€丟M 鍙欎簨銆佹帹鑽愬埛鏂般€佷簨浠惰Е鍙戝拰缁撳眬鍒ゆ柇闂幆銆?- 寮哄寲涓庡ぇ娉曞笀绛?NPC 浜よ皥鍚庣殑鍏蜂綋鍙嶉鍜屽悗缁嚎绱㈡柟鍚戙€?- 淇濈暀 Demo 鍏滃簳鍙欎簨锛岄伩鍏嶅鍏ユ晠浜嬭鍏滃簳妯℃澘姹℃煋銆?
-瀹屾暣鏇存柊鏃ュ織瑙?[CHANGELOG.md](CHANGELOG.md)銆?
+- 玩家行动结果会进入 AI GM 上下文，GM 叙事会结合 Rule Engine、World State、事件和新增情报生成具体反馈。
+- 修复事件 ID、目标别名、指标 key、玩家 ID 等内部参数泄露到玩家文本的问题。
+- 统一规范行动目标，支持 NPC、角色、事件、当前位置和关联地点等目标。
+- 改进社交、调查、自我梳理、线索、指标、关系和事件结算，让行动结果更具体。
+
+#### 玩家交互与性能
+
+- 推荐行动和自由行动提交后显示即时处理中反馈。
+- 推荐行动会根据最新 World State 刷新，点击过的旧行动会被过滤。
+- 修复推荐行动列表不实时更新的问题：点击后立即从 UI 移除旧行动，结算完成后用新推荐替换，失败时恢复原列表。
+- 行动结算后并行执行结局判断和 GM 叙事生成，减少等待。
+- 行动后的 GM 叙事使用并发高 token AI 请求，优先采用第一个合法 JSON 结果。
+
+#### 玩家界面
+
+- 修复 GM 名称被误显示为“通用汽车”。
+- 已知事实支持展开查看完整列表。
+- 优化行动面板、自由行动输入框和 UI Builder 的禁用、处理中、推荐刷新状态。
+- 清理证据、已知事实、角色信息和叙事文本中的内部参数。
+
+#### Demo：失落圣杯之夜
+
+- 打通创建房间、选角、开始故事、行动提交、GM 叙事、推荐刷新、事件触发和结局判断闭环。
+- 强化与大法师等 NPC 交谈后的具体反馈和后续线索方向。
+- 保留 Demo 兜底叙事，避免导入故事被兜底模板污染。
+
+完整更新日志见 [CHANGELOG.md](CHANGELOG.md)。
