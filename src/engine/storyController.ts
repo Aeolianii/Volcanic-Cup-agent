@@ -59,7 +59,9 @@ export function checkChapterTransition(
     return evt?.triggered === true;
   });
 
-  const shouldTransition = conditionsMet && allKeyEventsTriggered && state.turn >= 3;
+  const currentRound = state.turn_state?.current_round || state.turn || 1;
+  const roundGate = currentRound >= Math.max(2, nextChapter.order * 2 - 1);
+  const shouldTransition = conditionsMet && (allKeyEventsTriggered || roundGate) && currentRound >= 2;
 
   return {
     should_transition: shouldTransition,

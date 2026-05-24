@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { type WidgetKey } from "@/registry/widgetRegistry";
 import { NarrativePanel } from "@/components/widgets/NarrativePanel";
 import { ChatPanel } from "@/components/widgets/ChatPanel";
@@ -35,6 +36,8 @@ export function UIBuilder({
   disabled = false,
   pendingActionId = null,
 }: UIBuilderProps) {
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   // Sort widgets by position and order
   const visibleWidgets = widgets
     .filter((w) => w.visible)
@@ -128,6 +131,7 @@ export function UIBuilder({
               gameState.room?.players.find((p) => p.player_id === gameState.currentPlayerId)
                 ?.role || null
             }
+            knownFacts={playerView?.known_facts || []}
           />
         );
 
@@ -181,8 +185,10 @@ export function UIBuilder({
     }
   }
 
+  const centerMain = [...center, ...bottom].sort((a, b) => a.order - b.order);
+
   return (
-    <div className="flex flex-col gap-4 min-h-[600px]">
+    <div className="flex flex-col gap-4 h-[calc(100vh-110px)] min-h-[680px] overflow-hidden">
       {/* Top widgets */}
       {top.length > 0 && (
         <div className="space-y-2">
@@ -192,42 +198,67 @@ export function UIBuilder({
         </div>
       )}
 
-      {/* Main area: left | center | right */}
-      <div className="flex-1 grid grid-cols-12 gap-4">
+      <div className="flex-1 grid gap-4 overflow-hidden" style={{
+        gridTemplateColumns: `${left.length > 0 ? (leftCollapsed ? "48px" : "300px") : "0px"} minmax(520px, 1fr) ${right.length > 0 ? (rightCollapsed ? "48px" : "320px") : "0px"}`,
+      }}>
         {/* Left column */}
         {left.length > 0 && (
-          <div className="col-span-3 space-y-3">
-            {left.map((w) => (
-              <div key={w.key}>{renderWidget(w)}</div>
-            ))}
+          <div className="min-h-0 overflow-hidden rounded-xl border border-midnight-600/50 bg-midnight-900/20">
+            <ColumnHeader title="角色与状态" collapsed={leftCollapsed} onToggle={() => setLeftCollapsed((value) => !value)} />
+            {!leftCollapsed && (
+              <div className="h-[calc(100%-44px)] overflow-y-auto p-3 space-y-3">
+                {left.map((w) => (
+                  <div key={w.key}>{renderWidget(w)}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {/* Center */}
-        <div className={`space-y-3 ${left.length > 0 && right.length > 0 ? "col-span-6" : left.length > 0 || right.length > 0 ? "col-span-9" : "col-span-12"}`}>
-          {center.map((w) => (
-            <div key={w.key}>{renderWidget(w)}</div>
+        <div className="min-w-0 min-h-0 overflow-y-auto space-y-3 pr-1">
+          {centerMain.map((w) => (
+            <div key={w.key} className={w.key === "ChatPanel" || w.key === "FreeActionInput" ? "max-w-none" : ""}>
+              {renderWidget(w)}
+            </div>
           ))}
         </div>
 
         {/* Right column */}
         {right.length > 0 && (
-          <div className="col-span-3 space-y-3">
-            {right.map((w) => (
-              <div key={w.key}>{renderWidget(w)}</div>
-            ))}
+          <div className="min-h-0 overflow-hidden rounded-xl border border-midnight-600/50 bg-midnight-900/20">
+            <ColumnHeader title="行动与线索" collapsed={rightCollapsed} onToggle={() => setRightCollapsed((value) => !value)} />
+            {!rightCollapsed && (
+              <div className="h-[calc(100%-44px)] overflow-y-auto p-3 space-y-3">
+                {right.map((w) => (
+                  <div key={w.key}>{renderWidget(w)}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
-
-      {/* Bottom widgets */}
-      {bottom.length > 0 && (
-        <div className="space-y-2">
-          {bottom.map((w) => (
-            <div key={w.key}>{renderWidget(w)}</div>
-          ))}
-        </div>
-      )}
     </div>
+  );
+}
+
+function ColumnHeader({
+  title,
+  collapsed,
+  onToggle,
+}: {
+  title: string;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="h-11 w-full flex items-center justify-between px-3 text-xs text-amber-300 border-b border-midnight-600/50 bg-midnight-800/40 hover:bg-midnight-700/50 transition-colors"
+    >
+      <span style={collapsed ? { writingMode: "vertical-rl" } : undefined}>{collapsed ? title.slice(0, 2) : title}</span>
+      <span>{collapsed ? ">" : "<"}</span>
+    </button>
   );
 }

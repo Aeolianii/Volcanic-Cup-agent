@@ -104,8 +104,13 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
   if (!playerView) {
     return (
       <div className="panel">
-        <h3 className="font-fantasy text-amber-400 text-sm mb-2">玩家情报</h3>
-        <p className="text-parchment-500 text-sm">暂无情报</p>
+        <h3 className="font-fantasy text-amber-400 text-sm flex items-center gap-2 mb-3">
+          <span>📋</span> 玩家情报
+        </h3>
+        <div className="flex flex-col items-center justify-center py-6 text-parchment-500 gap-1">
+          <span className="text-xl opacity-40">📜</span>
+          <p className="text-sm">暂无情报</p>
+        </div>
       </div>
     );
   }
@@ -115,19 +120,22 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
 
   return (
     <div className="panel">
-      <h3 className="font-fantasy text-amber-400 text-sm mb-3">玩家情报</h3>
+      <h3 className="font-fantasy text-amber-400 text-sm flex items-center gap-2 mb-4">
+        <span>📋</span> 玩家情报
+      </h3>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
+        {/* Known NPCs */}
         {playerView.known_npcs.length > 0 && (
           <div>
-            <h4 className="text-xs text-amber-500/80 uppercase tracking-wider mb-1">
+            <h4 className="text-[10px] text-amber-500/70 uppercase tracking-wider font-medium mb-2">
               已知 NPC ({playerView.known_npcs.length})
             </h4>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {playerView.known_npcs.map((npc) => (
                 <span
                   key={npc}
-                  className="text-xs bg-midnight-700 px-1.5 py-0.5 rounded text-parchment-400"
+                  className="text-xs bg-midnight-700/70 px-2.5 py-1 rounded-full text-parchment-300 border border-midnight-600/40"
                 >
                   {npc}
                 </span>
@@ -136,51 +144,56 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
           </div>
         )}
 
+        {/* Known Locations */}
         {playerView.known_locations.length > 0 && (
           <div>
-            <h4 className="text-xs text-amber-500/80 uppercase tracking-wider mb-1">
+            <h4 className="text-[10px] text-amber-500/70 uppercase tracking-wider font-medium mb-2">
               已知地点 ({playerView.known_locations.length})
             </h4>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {playerView.known_locations.map((loc) => (
                 <span
                   key={loc}
-                  className="text-xs bg-midnight-700 px-1.5 py-0.5 rounded text-parchment-400"
+                  className="text-xs bg-midnight-700/70 px-2.5 py-1 rounded-full text-parchment-300 border border-midnight-600/40"
                 >
-                  {formatLocation(loc)}
+                  📍 {formatLocation(loc)}
                 </span>
               ))}
             </div>
           </div>
         )}
 
+        {/* Known Facts */}
         {playerView.known_facts.length > 0 && (
           <div>
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <h4 className="text-xs text-amber-500/80 uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <h4 className="text-[10px] text-amber-500/70 uppercase tracking-wider font-medium">
                 已知事实 ({playerView.known_facts.length})
               </h4>
               {hiddenFactCount > 0 && (
                 <button
                   type="button"
                   onClick={() => setFactsExpanded((value) => !value)}
-                  className="text-[11px] text-amber-400 hover:text-amber-300 underline-offset-2 hover:underline"
+                  className="text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
                 >
-                  {factsExpanded ? "收起" : `展开全部 ${playerView.known_facts.length} 条`}
+                  {factsExpanded ? "收起" : `展开全部`}
                 </button>
               )}
             </div>
 
-            <ul className="text-xs text-parchment-400 list-disc list-inside">
+            <ul className="text-xs text-parchment-400 space-y-1">
               {facts.map((fact, index) => (
-                <li key={`${fact}_${index}`}>{formatFact(fact)}</li>
+                <li key={`${fact}_${index}`} className="flex items-start gap-1.5">
+                  <span className="text-amber-600 mt-0.5 shrink-0">•</span>
+                  <span className="leading-relaxed">{formatFact(fact)}</span>
+                </li>
               ))}
               {hiddenFactCount > 0 && !factsExpanded && (
-                <li className="list-none mt-1">
+                <li>
                   <button
                     type="button"
                     onClick={() => setFactsExpanded(true)}
-                    className="text-parchment-500 hover:text-amber-300 underline-offset-2 hover:underline"
+                    className="text-parchment-500 hover:text-amber-300 transition-colors"
                   >
                     还有 {hiddenFactCount} 条，点击展开
                   </button>
@@ -190,8 +203,11 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
           </div>
         )}
 
-        <div className="text-[10px] text-parchment-600 italic">
-          情报基于你的角色视角。其他角色可能掌握不同信息。
+        {/* Footer note */}
+        <div className="pt-2 border-t border-midnight-600/30">
+          <p className="text-[10px] text-parchment-600 italic">
+            情报基于你的角色视角，其他角色可能掌握不同信息。
+          </p>
         </div>
       </div>
     </div>

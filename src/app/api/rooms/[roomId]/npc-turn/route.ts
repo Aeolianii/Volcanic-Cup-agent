@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { roomManager } from "@/lib/roomManager";
-import { runDueNPCTurns } from "@/engine/npcTurnSystem";
+import { runDueAIPlayerTurns } from "@/engine/aiPlayerTurnSystem";
 import { getAIProvider } from "@/lib/aiProvider";
 
 export async function POST(
@@ -20,14 +20,14 @@ export async function POST(
       );
     }
 
-    const npcTurn = await runDueNPCTurns(worldState, bible, getAIProvider());
-    worldState = npcTurn.worldState;
+    const aiPlayerTurn = await runDueAIPlayerTurns(worldState, bible, room.players, getAIProvider());
+    worldState = aiPlayerTurn.worldState;
 
     roomManager.updateWorldState(roomId, worldState);
 
     return NextResponse.json({
       success: true,
-      npc_results: npcTurn.npcResults,
+      npc_results: aiPlayerTurn.aiPlayerResults,
       world_state: worldState,
     });
   } catch (error) {

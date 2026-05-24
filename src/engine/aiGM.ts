@@ -22,6 +22,7 @@ export async function generateGMNarrative(
   actionContext?: {
     action: StructuredAction;
     result: RuleResult;
+    metric_changes?: GMActionContext["metric_changes"];
     triggered_events?: Array<{ id: string; title: string; description?: string }>;
     npc_results?: GMActionContext["npc_results"];
   }
@@ -39,7 +40,13 @@ export async function generateGMNarrative(
         suggested_actions: refreshSuggestedActions(output.suggested_actions, state, bible, context.last_action),
       });
     }
-  } catch {
+  } catch (error) {
+    console.error("[AI GM] narrative generation failed", {
+      storyId: bible.id,
+      title: bible.title,
+      phase,
+      error: error instanceof Error ? error.message : String(error),
+    });
     if (!allowsTemplateFallback(bible)) {
       return sanitizeNarrativeOutput(failedNarrative(context.last_action, state, bible));
     }
@@ -57,8 +64,8 @@ function allowsTemplateFallback(bible: StoryBible): boolean {
 }
 
 function getNarrativeTimeoutMs(bible: StoryBible, hasAction: boolean): number {
-  if (!hasAction) return 3000;
-  return allowsTemplateFallback(bible) ? 4500 : 16000;
+  if (allowsTemplateFallback(bible)) return hasAction ? 4500 : 3000;
+  return hasAction ? 22000 : 14000;
 }
 
 function failedNarrative(
@@ -67,12 +74,9 @@ function failedNarrative(
   bible: StoryBible
 ): GMNarrativeOutput {
   return {
-    narration: [
-      `第 ${state.chapter} 章 · 第 ${state.turn} 回合`,
-      lastAction ? `行动已由规则引擎完成结算：${lastAction.public_result}` : `《${bible.title}》的当前叙事请求已经提交。`,
-      "AI GM 没有成功返回本次叙事结果。为避免用模板剧情替代导入故事的真实生成，系统没有生成替代剧情。",
-      "请重新提交行动，或检查 AI API 配置、模型响应时间和网络状态。",
-    ].join("\n\n"),
+    narration: lastAction
+      ? buildActionNarration(lastAction, bible, state)
+      : `? ${state.chapter} ? ? ? ${state.turn_state?.current_round || state.turn || 1} ??\n\n???????GM ??????????????????????????????`,
     suggested_events: lastAction?.triggered_events.map((event) => event.id) || [],
     revealed_information: [],
     suggested_actions: buildGenericFallbackActions(state, bible, lastAction),
@@ -153,6 +157,7 @@ function buildGMContext(
   actionContext?: {
     action: StructuredAction;
     result: RuleResult;
+    metric_changes?: GMActionContext["metric_changes"];
     triggered_events?: Array<{ id: string; title: string; description?: string }>;
     npc_results?: GMActionContext["npc_results"];
   }
@@ -161,31 +166,31 @@ function buildGMContext(
   const eventLabel = (eventId: string) =>
     bible.events.find((event) => event.id === eventId)?.title || eventId;
   const lastAction = actionContext
-    ? buildLastActionContext(actionContext.action, actionContext.result, bible, state, actionContext.triggered_events || [], actionContext.npc_results || [])
+    ? buildLastActionContext(actionContext.action, actionContext.result, bible, state, actionContext.triggered_events || [], actionContext.npc_results || [], actionContext.metric_changes || [])
     : undefined;
 
   return {
     story_bible: {
       title: bible.title,
-      world_setting: bible.world_setting.atmosphere,
+      world_setting: shortText(bible.world_setting.atmosphere, 360),
       genre_profile: bible.runtime_modules?.genre_profile,
       tone_tags: bible.runtime_modules?.tone_tags,
       roles: bible.roles.map((role) => ({
         id: role.id,
         name: role.name,
-        public_identity: role.public_identity,
+        public_identity: shortText(role.public_identity, 80),
       })),
       npcs: bible.npcs.map((npc) => ({
         id: npc.id,
         name: npc.name,
-        public_identity: npc.public_identity,
+        public_identity: shortText(npc.public_identity, 80),
       })),
       chapters: bible.chapters.map((chapter) => ({ id: chapter.id, title: chapter.title })),
       current_chapter_events: (currentChapter?.key_events || []).map(eventLabel),
     },
     runtime_modules: bible.runtime_modules,
     world_state_summary: {
-      flags: state.flags,
+      flags: Object.fromEntries(Object.entries(state.flags).slice(-40)),
       metrics: state.metrics
         .filter((metric) => isPlayerVisibleMetric(metric.metric_id, bible))
         .map((metric) => ({
@@ -208,6 +213,8 @@ function buildGMContext(
       .map((event) => eventLabel(event.event_id)),
     current_turn: state.turn,
     current_chapter: state.chapter,
+    current_round: state.turn_state?.current_round,
+    max_rounds: state.turn_state?.max_rounds,
     last_action: lastAction,
   };
 }
@@ -365,7 +372,8 @@ function buildLastActionContext(
   bible: StoryBible,
   state: WorldState,
   triggeredEvents: Array<{ id: string; title: string; description?: string }>,
-  npcResults: GMActionContext["npc_results"] = []
+  npcResults: GMActionContext["npc_results"] = [],
+  metricChanges: GMActionContext["metric_changes"] = []
 ): GMActionContext {
   return {
     actor_id: action.actor_id,
@@ -392,6 +400,7 @@ function buildLastActionContext(
         delta: update.delta,
         value: update.value,
       })),
+    metric_changes: metricChanges,
     triggered_events: triggeredEvents,
     npc_results: npcResults,
   };
@@ -491,7 +500,14 @@ function buildActionNarration(
     .filter((event) => event.triggered)
     .map((event) => bible.events.find((storyEvent) => storyEvent.id === event.event_id)?.title)
     .filter(Boolean);
-  const metricLines = lastAction.state_updates
+  const metricLinesFromContext = (lastAction.metric_changes || [])
+    .filter((change) => change.delta !== undefined && change.delta !== 0)
+    .filter((change) => isPlayerVisibleMetric(change.metric, bible))
+    .map((change) => {
+      const direction = Number(change.delta) > 0 ? "上升" : "下降";
+      return `${change.label}${direction}${Math.abs(Number(change.delta))}（${change.before}→${change.after}）`;
+    });
+  const metricLines = metricLinesFromContext.length > 0 ? metricLinesFromContext : lastAction.state_updates
     .filter((update) =>
       update.type === "metric_change" &&
       update.metric &&
@@ -700,13 +716,13 @@ function generateContextualActions(
         : "先确认当前地点有哪些可用信息",
     },
     {
-      label: "梳理角色目标",
+      label: "推动下一处缺口",
       action_type: "investigate",
-      target: "self_goal",
-      method: "reflect",
-      intent: "plan_next_move",
+      target: firstVisibleEvent?.id || currentTarget,
+      method: "connect_goal_to_event",
+      intent: "advance_next_event",
       risk_level: "low",
-      context: "把公开目标与秘密目标转化为下一步计划",
+      context: "把角色目标落实到当前事件缺口，推进剧情进入下一阶段",
     },
   ];
 
@@ -734,7 +750,7 @@ function refreshSuggestedActions(
   if (!allowsTemplateFallback(bible)) {
     return filterFreshSuggestedActions(
       rankProgressiveActions(
-        mergeSuggestedActions(buildGenericFallbackActions(state, bible, lastAction), aiActions, lastAction),
+        mergeSuggestedActions(aiActions.filter(isConcreteGMAction), buildGenericFallbackActions(state, bible, lastAction), lastAction),
         state,
         bible
       ),
@@ -745,7 +761,7 @@ function refreshSuggestedActions(
 
   return filterFreshSuggestedActions(
     rankProgressiveActions(
-      mergeSuggestedActions(buildFollowUpActions(state, bible, lastAction), aiActions, lastAction),
+      mergeSuggestedActions(aiActions.filter(isConcreteGMAction), buildFollowUpActions(state, bible, lastAction), lastAction),
       state,
       bible
     ),
@@ -826,6 +842,17 @@ function scoreActionForProgress(action: GMNarrativeOutput["suggested_actions"][n
 
 function normalizeActionLabel(label: string): string {
   return String(label || "").replace(/[“”"'\s]/g, "").toLowerCase();
+}
+
+function shortText(text: string, max: number): string {
+  const trimmed = String(text || "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  return trimmed.length > max ? `${trimmed.slice(0, max)}...` : trimmed;
+}
+
+function isConcreteGMAction(action: GMNarrativeOutput["suggested_actions"][number]): boolean {
+  if (!action?.label || !action?.target || !action?.action_type) return false;
+  const text = `${action.label} ${action.target} ${action.method} ${action.intent} ${action.context}`;
+  return !/(当前线索|当前疑点|整理个人目标|推进关系线|关键见证者|self_goal|unknown|current_location)/.test(text);
 }
 
 function buildFollowUpActions(
@@ -1002,46 +1029,50 @@ function buildGenericFallbackActions(
   const modules = bible.runtime_modules;
   const activeEvent = state.events.find((event) => event.triggered);
   const event = bible.events.find((item) => item.id === activeEvent?.event_id) || bible.events[0];
-  const firstNpc = bible.npcs[0];
+  const firstRole = bible.roles[0];
+  const secondRole = bible.roles[1] || firstRole;
   const currentTarget =
     state.locations.find((location) => location.present_characters.length > 0)?.id ||
     event?.id ||
-    "current_location";
+    firstRole?.id ||
+    "public_scene";
   const actions: GMNarrativeOutput["suggested_actions"] = [];
+  const isRelationship = Boolean(modules?.enabled.relationship_routes);
+  const isInvestigation = modules?.enabled.investigation !== false;
 
   actions.push({
-    label: modules?.enabled.relationship_routes ? "推进关系线" : "梳理下一步目标",
-    action_type: modules?.enabled.relationship_routes ? "talk" : "investigate",
-    target: firstNpc?.id || "self_goal",
-    method: modules?.enabled.relationship_routes ? "careful_conversation" : "reflect",
-    intent: modules?.enabled.relationship_routes ? "build_trust_or_test_attitude" : "plan_next_move",
+    label: isRelationship && firstRole ? `靠近${firstRole.name}确认真实态度` : event ? `处理“${event.title}”` : "处理当前公开节点",
+    action_type: isRelationship ? "talk" : isInvestigation ? "investigate" : "gain_support",
+    target: isRelationship ? firstRole?.id || currentTarget : event?.id || currentTarget,
+    method: isRelationship ? "careful_conversation" : isInvestigation ? "focused_inquiry" : "public_positioning",
+    intent: isRelationship ? "clarify_relationship_direction" : "advance_next_event",
     risk_level: "low",
-    context: modules?.enabled.relationship_routes
-      ? "通过对话确认态度、误会或隐藏顾虑"
-      : "根据当前情报重新决定优先级",
+    context: isRelationship
+      ? "通过具体对话确认好感、信任或误会，推动真心归位或继续错位"
+      : "把当前公开节点推进到可触发事件、指标变化或结局分支的方向",
   });
 
-  if (modules?.enabled.investigation !== false) {
+  if (isInvestigation) {
     actions.push({
-      label: "调查当前疑点",
+      label: event ? `核验“${event.title}”的矛盾` : "核验公开信息中的矛盾",
       action_type: "investigate",
       target: event?.id || currentTarget,
-      method: "focused_inquiry",
-      intent: "find_clues",
+      method: "verify_contradiction",
+      intent: "advance_truth_or_memory",
       risk_level: "low",
-      context: event ? `围绕“${event.title}”寻找可验证信息` : "先确认当前场景中的可用信息",
+      context: event ? `围绕“${event.title}”寻找可验证信息` : "先确认当前场景中可用的信息",
     });
   }
 
-  if (firstNpc) {
+  if (secondRole && isRelationship) {
     actions.push({
-      label: `试探${firstNpc.name}`,
-      action_type: "talk",
-      target: firstNpc.id,
-      method: "careful_conversation",
-      intent: "gather_information",
+      label: `与${secondRole.name}核对一段关键记忆`,
+      action_type: "persuade",
+      target: secondRole.id,
+      method: "memory_crosscheck",
+      intent: "shift_relationship_metric",
       risk_level: "medium",
-      context: `${firstNpc.public_identity}，可能掌握与你当前处境相关的信息`,
+      context: "这会推动好感、信任或记忆归位度，也可能让某条关系走向错付或和解",
     });
   }
 
@@ -1063,7 +1094,7 @@ function buildGenericFallbackActions(
       method: "public_positioning",
       intent: "improve_faction_position",
       risk_level: "medium",
-      context: "通过公开表态或协调资源改善所在阵营的位置",
+      context: "通过公开表态或协调资源改善所在势力的位置，但会暴露立场",
     });
   }
 

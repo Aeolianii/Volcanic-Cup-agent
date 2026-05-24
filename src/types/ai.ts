@@ -18,6 +18,8 @@ export interface GMContext {
   recent_events: string[];
   current_turn: number;
   current_chapter: number;
+  current_round?: number;
+  max_rounds?: number;
   last_action?: GMActionContext;
 }
 
@@ -57,6 +59,13 @@ export interface GMActionContext {
     metric?: string;
     delta?: number;
     value?: unknown;
+  }>;
+  metric_changes?: Array<{
+    metric: string;
+    label: string;
+    before?: number | boolean | string;
+    delta?: number;
+    after?: number | boolean | string;
   }>;
   triggered_events: Array<{
     id: string;

@@ -6,6 +6,7 @@ import { selectRulePacks } from "./rulePackSelector";
 import { generateMetrics } from "./metricGenerator";
 import { generateUIConfig } from "./uiConfigGenerator";
 import { enrichStoryBibleForSimulation } from "./storyAdaptationLayer";
+import { parseFullTextScript } from "./fullTextScriptParser";
 
 type GenreProfile =
   | "campus"
@@ -23,7 +24,10 @@ type GenreProfile =
 export async function generateStoryBible(seed: StorySeed): Promise<StoryBible> {
   const analysis = analyzeStory(seed);
   const adapted = adaptStory(seed, analysis);
-  const characters = parseCharacters(seed.characters);
+  const fullTextParse = parseFullTextScript(seed.full_text || "");
+  const characters = fullTextParse.characters.length > 0
+    ? fullTextParse.characters.map((character) => character.name)
+    : parseCharacters(seed.characters);
 
   const bible: StoryBible = {
     id: `story_${Date.now()}`,
@@ -32,7 +36,7 @@ export async function generateStoryBible(seed: StorySeed): Promise<StoryBible> {
     world_setting: {
       era: extractEra(seed),
       location: extractLocation(seed.world_setting || seed.opening || seed.genre),
-      atmosphere: seed.world_setting || seed.opening || `${seed.genre || "互动"}故事`,
+      atmosphere: shortText(seed.world_setting || seed.opening || `${seed.genre || "互动"}故事`, 900),
       magic_system: isSupernatural(seed) ? "依照当前设定运行的特殊力量规则" : undefined,
       technology_level: extractTechnologyLevel(seed),
     },
@@ -49,20 +53,15 @@ export async function generateStoryBible(seed: StorySeed): Promise<StoryBible> {
       abilities: buildAbilities(name, seed, index),
     })),
     npcs: generateNPCs(seed),
-    factions: buildFactions(seed, characters),
+    factions: shouldDisableFactionParams(seed) ? [] : fullTextParse.factions.length > 0
+      ? buildFullTextFactions(fullTextParse.factions, characters)
+      : buildFactions(seed, characters),
     character_models: [],
     faction_models: [],
     relationship_graph: { edges: [] },
     knowledge_graph: { facts: [] },
     victory_conditions: [],
-    chapters: adapted.additions.chapters.map((chapter, index) => ({
-      id: `chapter_${index + 1}`,
-      title: chapter.title,
-      order: index + 1,
-      description: chapter.description,
-      entry_conditions: index === 0 ? [] : [`turn >= ${index * 5}`],
-      key_events: chapter.key_events,
-    })),
+    chapters: buildChapters(seed, adapted.additions.chapters, fullTextParse.confidence),
     events: generateEvents(seed, adapted.additions.events),
     endings: generateEndings(seed),
     metrics: [],
@@ -71,12 +70,172 @@ export async function generateStoryBible(seed: StorySeed): Promise<StoryBible> {
     ui_config: { theme: "", layout: "default", widgets: [], display_metrics: [] },
   };
 
+  if (fullTextParse.characters.length > 0) {
+    bible.roles = bible.roles.map((role) => {
+      const parsed = fullTextParse.characters.find((character) => character.name === role.name);
+      if (!parsed) return role;
+      const obsession = extractPersonalObsession(parsed.raw);
+      return {
+        ...role,
+        public_identity: parsed.public_identity || role.public_identity,
+        private_background: summarizeRolePrivateBackground(parsed.raw) || role.private_background,
+        public_goal: buildFullTextPublicGoal(parsed.raw, seed) || role.public_goal,
+        secret_goal: obsession || role.secret_goal,
+        initial_knowledge: Array.from(new Set([
+          `你清楚自己的公开身份：${parsed.public_identity || role.public_identity}`,
+          obsession ? `你的个人执念：${obsession}` : role.secret_goal,
+          ...extractRoleKnowledge(parsed.raw),
+        ])).slice(0, 5),
+      };
+    });
+  }
+
+  if (fullTextParse.endings.length > 0) {
+    bible.endings = buildEndingsFromFullText(seed, fullTextParse.endings, bible.endings);
+  }
+
+  bible.chapters = attachEventsToChapters(bible.chapters, bible.events);
+
   const features = extractFeatures(bible);
   bible.rules = selectRulePacks(features);
   bible.metrics = generateMetrics(bible);
   bible.ui_config = generateUIConfig(bible);
 
   return enrichStoryBibleForSimulation(bible, seed);
+}
+
+function buildChapters(
+  seed: StorySeed,
+  generatedChapters: Array<{ title: string; description: string; key_events: string[] }>,
+  fullTextConfidence: number
+): StoryBible["chapters"] {
+  const targetCount = clamp(
+    fullTextConfidence >= 60 ? 6 : Math.max(4, generatedChapters.length),
+    4,
+    7
+  );
+  const base = generatedChapters.length > 0 ? generatedChapters : [
+    { title: "开场导入", description: seed.opening || "角色入场，公开信息与第一层冲突浮现。", key_events: [] },
+    { title: "自由探索", description: "玩家开始调查、结盟、试探和隐藏自己的真实目标。", key_events: [] },
+    { title: "冲突升级", description: "阵营目标与个人秘密开始互相碰撞。", key_events: [] },
+    { title: "终局抉择", description: seed.ending || "所有线索与关系收束到最终选择。", key_events: [] },
+  ];
+
+  const chapterTemplates = [
+    "开场导入",
+    "第一轮搜证",
+    "关系试探",
+    "阵营分化",
+    "真相反转",
+    "终局前夜",
+    "结局裁定",
+  ];
+
+  return Array.from({ length: targetCount }, (_, index) => {
+    const source = base[index] || base[base.length - 1];
+    return {
+      id: `chapter_${index + 1}`,
+      title: source?.title || chapterTemplates[index] || `第 ${index + 1} 篇章`,
+      order: index + 1,
+      description: source?.description || "剧情继续推进，玩家与 NPC 都会让局势向各自目标倾斜。",
+      entry_conditions: index === 0 ? [] : [`turn >= ${index * 2 + 1}`],
+      key_events: source?.key_events || [],
+    };
+  });
+}
+
+function attachEventsToChapters(chapters: StoryBible["chapters"], events: StoryBible["events"]): StoryBible["chapters"] {
+  if (chapters.length === 0) return chapters;
+  const next = chapters.map((chapter) => ({ ...chapter, key_events: [...chapter.key_events] }));
+  events.forEach((event, index) => {
+    const chapterIndex = Math.min(next.length - 1, Math.floor(index / Math.max(1, Math.ceil(events.length / next.length))));
+    const chapter = next.find((item) => item.id === event.chapter_id) || next[chapterIndex];
+    if (chapter && !chapter.key_events.includes(event.id)) chapter.key_events.push(event.id);
+  });
+  return next;
+}
+
+function shouldDisableFactionParams(seed: StorySeed): boolean {
+  const text = [seed.genre, seed.opening, seed.ending, seed.characters, seed.world_setting, seed.full_text].join(" ");
+  const needsFactions = /战争|军团|战线|权谋|宫廷|王室|议会|派系|阵营|组织|势力|西幻|奇幻|魔法|王国|公司|星际联盟|帝国|教会/.test(text);
+  const relationshipFirst = /群像言情|言情|恋爱|爱情|心动|爱意|暗恋|情感|关系|羁绊|和解|亲情|友情/.test(text);
+  return relationshipFirst && !needsFactions;
+}
+
+function buildFullTextFactions(factionNames: string[], characters: string[]): Faction[] {
+  const roleIds = characters.map((_, index) => `role_${index + 1}`);
+  return factionNames.slice(0, 4).map((name, index) => ({
+    id: `faction_full_text_${index + 1}`,
+    name,
+    description: `来自完整剧本文本的核心立场：${name}。玩家可以通过选择、投票、调查和公开表态推动该立场成为最终结局。`,
+    goals: [`推动“${name}”成为最终群像结局`, "保护本立场相关角色的个人执念", "争取更多玩家在终局抉择中支持该方向"],
+    members: roleIds.filter((_, roleIndex) => roleIndex % Math.max(2, factionNames.length) === index % Math.max(2, factionNames.length)),
+    relationships: Object.fromEntries(
+      factionNames.slice(0, 4).map((other, otherIndex) => [
+        `faction_full_text_${otherIndex + 1}`,
+        otherIndex === index ? 50 : -10,
+      ])
+    ),
+  }));
+}
+
+function extractPersonalObsession(raw: string): string {
+  return raw.match(/个人执念[：:]\s*([^\n]+)/)?.[1]?.trim() || "";
+}
+
+function summarizeRolePrivateBackground(raw: string): string {
+  const lines = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^(男|女)\s*[0-9一二三四五六七八九十]+\s*\|/.test(line));
+  return shortText(lines.join(" "), 260);
+}
+
+function buildFullTextPublicGoal(raw: string, seed: StorySeed): string {
+  if (/群像言情|心动|爱意|情感|恋人/.test(seed.genre + seed.world_setting + raw)) {
+    return "厘清自己的心动记忆，确认该坚守虚妄还是奔赴真心";
+  }
+  if (/赛博|系统|数据|AI|全息|记忆/.test(seed.genre + seed.world_setting + raw)) {
+    return "查明系统异常与自身记忆错位之间的关系";
+  }
+  if (/战争|军团|战线|补给|指挥/.test(seed.genre + seed.world_setting + raw)) {
+    return "在战局压力下保护己方利益并争取关键资源";
+  }
+  if (/权谋|宫廷|王室|议会|继承/.test(seed.genre + seed.world_setting + raw)) {
+    return "在权力博弈中争取支持并掌握关键筹码";
+  }
+  return "";
+}
+
+function extractRoleKnowledge(raw: string): string[] {
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !/^(男|女)\s*\d+\s*\|/.test(line))
+    .filter((line) => line.length >= 8)
+    .slice(0, 3);
+}
+
+function buildEndingsFromFullText(seed: StorySeed, endings: string[], fallback: StoryBible["endings"]): StoryBible["endings"] {
+  const baseMetric = /科幻|数据|系统|记忆|滨海|AI/i.test(seed.genre + seed.world_setting)
+    ? "truth_progress"
+    : "truth_progress";
+  const generated: Ending[] = endings.slice(0, Math.max(3, Math.min(6, endings.length))).map((ending, index) => ({
+    id: `ending_full_text_${index + 1}`,
+    title: shortText(ending.split(/[|｜:：]/)[0] || `结局 ${index + 1}`, 18),
+    description: ending,
+    conditions: [
+      { type: "metric_threshold" as const, metric_id: baseMetric, operator: index % 2 === 0 ? "gte" as const : "lte" as const, value: index % 2 === 0 ? 65 + index * 5 : 45 - index * 3 },
+    ],
+    priority: index + 1,
+    narrative_prompt: `根据完整剧本文本收束到该结局：${ending}`,
+  }));
+  return generated.concat(fallback.slice(0, Math.max(0, 4 - endings.length)));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 function parseCharacters(input: string): string[] {
@@ -203,7 +362,7 @@ function buildSecretGoal(name: string, seed: StorySeed, suggested?: string): str
 function buildInitialKnowledge(name: string, seed: StorySeed): string[] {
   const profile = getProfile(seed);
   const facts = ["你知道自己的公开身份、私人背景与秘密目标。"];
-  if (seed.opening) facts.push(`你亲历或听闻了开场事件：${seed.opening}`);
+  if (seed.opening) facts.push(`你亲历或听闻了开场事件：${shortText(seed.opening, 220)}`);
   if (profile === "campus") {
     if (/转校|新生/.test(name)) facts.push("你知道自己被卷入流言并非偶然，有人刻意引导了第一波误会。");
     if (/班长|学生会/.test(name)) facts.push("你知道学生会资料或班级记录中有一处时间线对不上。");

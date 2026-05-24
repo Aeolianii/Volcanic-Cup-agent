@@ -3,13 +3,22 @@ import { roomManager } from "@/lib/roomManager";
 import { parsePlayerAction, parseSuggestedAction } from "@/engine/actionParser";
 import { processPlayerAction } from "@/engine/ruleEngine";
 import { applyUpdates, decrementActiveModifiers } from "@/engine/worldStateEngine";
-import { runDueNPCTurns } from "@/engine/npcTurnSystem";
+import { runDueAIPlayerTurns } from "@/engine/aiPlayerTurnSystem";
 import { checkEventTriggers } from "@/engine/eventTriggerSystem";
 import { checkEndings } from "@/engine/endingJudge";
 import { generateGMNarrative } from "@/engine/aiGM";
 import { runGMBalancerAgent } from "@/engine/gmBalancerAgent";
 import { checkChapterTransition } from "@/engine/storyController";
+import {
+  buildRoundPressureUpdates,
+  canPlayerTakeAction,
+  consumePlayerAction,
+  ensureTurnState,
+  maybeAdvanceRound,
+} from "@/engine/turnSystem";
 import { getAIProvider } from "@/lib/aiProvider";
+import { sanitizeForPlayerDisplay, sanitizeSuggestedActionText } from "@/engine/displaySanitizer";
+import { applyRequestLLMConfig } from "@/lib/llmProvider";
 import type { ActionType, EventEffect, ParsedAction, StateUpdate, StructuredAction } from "@/types";
 
 const VALID_ACTION_TYPES: ActionType[] = [
@@ -59,6 +68,7 @@ export async function POST(
 ) {
   try {
     const { roomId } = params;
+    applyRequestLLMConfig(request.headers);
     const body = await request.json();
 
     const room = roomManager.getRoom(roomId);
@@ -71,6 +81,7 @@ export async function POST(
         { status: 404 }
       );
     }
+    worldState = ensureTurnState(worldState);
     const actorState = worldState.character_states[body.player_id];
     if (actorState?.ghost_mode) {
       return NextResponse.json(
@@ -113,15 +124,25 @@ export async function POST(
     }
     structuredAction = normalizeActionTarget(structuredAction, bible, worldState);
 
+    const turnCheck = canPlayerTakeAction(worldState, body.player_id, structuredAction);
+    if (!turnCheck.allowed) {
+      return NextResponse.json(
+        { success: false, error: turnCheck.reason },
+        { status: 403 }
+      );
+    }
+
+    const metricsBefore = snapshotMetrics(worldState);
+
     // Process through Rule Engine
     const result = processPlayerAction(structuredAction, worldState, bible);
 
     // Apply state updates
     worldState = applyUpdates(worldState, result.state_updates);
-    worldState.turn += 1;
+    worldState = consumePlayerAction(worldState, body.player_id, structuredAction);
     worldState = decrementActiveModifiers(worldState);
-    const npcTurn = await runDueNPCTurns(worldState, bible, getAIProvider());
-    worldState = npcTurn.worldState;
+    const aiPlayerTurn = await runDueAIPlayerTurns(worldState, bible, room.players, getAIProvider());
+    worldState = aiPlayerTurn.worldState;
     const balanceResult = runGMBalancerAgent(room.players, worldState, bible);
     if (balanceResult.updates.length > 0) {
       worldState = applyUpdates(worldState, balanceResult.updates);
@@ -158,7 +179,13 @@ export async function POST(
         },
       };
     }
+    const beforeRound = worldState.turn_state.current_round;
+    worldState = maybeAdvanceRound(worldState, room.players);
+    if (worldState.turn_state.current_round !== beforeRound) {
+      worldState = applyUpdates(worldState, buildRoundPressureUpdates(worldState, bible));
+    }
     roomManager.updateWorldState(roomId, worldState);
+    const metricChanges = buildMetricChanges(metricsBefore, worldState, bible);
 
     // Check endings and generate GM narrative in parallel after the state is settled.
     const gmPhase = triggeredEvents.length > 0 ? "event_narration" : "turn_narration";
@@ -172,14 +199,15 @@ export async function POST(
         {
           action: structuredAction,
           result,
-          npc_results: npcTurn.npcResults
+          metric_changes: metricChanges,
+          npc_results: aiPlayerTurn.aiPlayerResults
             .filter((item) => !item.skipped)
             .map((item) => ({
-              npc_id: item.npc_id,
+              npc_id: item.player_id,
               action_type: item.proposal?.action_type,
-              intention: item.proposal?.intention,
+              intention: item.proposal?.intent,
               success: item.result?.success,
-              visibility: item.proposal?.visibility,
+              visibility: "partial",
               public_result: item.public_result,
               state_updates: item.result?.state_updates.map((update) => ({
                 type: update.type,
@@ -216,7 +244,11 @@ export async function POST(
     return NextResponse.json({
       success: true,
       action: structuredAction,
-      rule_result: result,
+      rule_result: {
+        ...result,
+        public_result: sanitizeForPlayerDisplay(result.public_result, bible, worldState),
+        private_result: result.private_result ? sanitizeForPlayerDisplay(result.private_result, bible, worldState) : result.private_result,
+      },
       triggered_events: triggeredEvents.map((te) => ({
         event_id: te.event.id,
         title: te.event.title,
@@ -225,10 +257,28 @@ export async function POST(
       ending: endingResult.reached ? endingResult.ending : null,
       all_endings_status: endingResult.all_endings_status,
       chapter_transition: chapterTransition.should_transition ? chapterTransition : null,
-      gm_narrative: gmNarrative,
-      gm_message: gmMessage,
-      npc_results: npcTurn.npcResults,
-      suggested_actions: gmNarrative.suggested_actions,
+      gm_narrative: {
+        ...gmNarrative,
+        narration: sanitizeForPlayerDisplay(gmNarrative.narration, bible, worldState),
+        suggested_actions: gmNarrative.suggested_actions.map((action) => sanitizeSuggestedActionText(action, bible, worldState)),
+      },
+      gm_message: {
+        ...gmMessage,
+        content: sanitizeForPlayerDisplay(gmMessage.content, bible, worldState),
+      },
+      npc_results: aiPlayerTurn.aiPlayerResults,
+      suggested_actions: gmNarrative.suggested_actions.map((action) => sanitizeSuggestedActionText(action, bible, worldState)),
+      metric_changes: metricChanges,
+      turn_summary: {
+        current_round: worldState.turn_state.current_round,
+        max_rounds: worldState.turn_state.max_rounds,
+        actions_used: worldState.turn_state.player_action_counts[body.player_id] || 0,
+        actions_remaining: Math.max(
+          0,
+          worldState.turn_state.actions_per_player - (worldState.turn_state.player_action_counts[body.player_id] || 0)
+        ),
+        actions_per_round: worldState.turn_state.actions_per_player,
+      },
       world_state: worldState,
     });
   } catch (error) {
@@ -237,6 +287,38 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+function snapshotMetrics(worldState: { metrics: Array<{ metric_id: string; value: unknown }> }): Map<string, unknown> {
+  return new Map(worldState.metrics.map((metric) => [metric.metric_id, metric.value]));
+}
+
+function buildMetricChanges(
+  before: Map<string, unknown>,
+  worldState: { metrics: Array<{ metric_id: string; value: unknown }> },
+  bible: { metrics: Array<{ id: string; label: string }> }
+) {
+  return worldState.metrics
+    .map((metric) => {
+      const previous = before.get(metric.metric_id);
+      const current = metric.value;
+      const delta = typeof previous === "number" && typeof current === "number"
+        ? current - previous
+        : undefined;
+      return {
+        metric: metric.metric_id,
+        label: bible.metrics.find((item) => item.id === metric.metric_id)?.label || metric.metric_id,
+        before: metricValue(previous),
+        delta,
+        after: metricValue(current),
+      };
+    })
+    .filter((item) => item.before !== item.after);
+}
+
+function metricValue(value: unknown): number | boolean | string | undefined {
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") return value;
+  return undefined;
 }
 
 function eventEffectsToStateUpdates(effects: EventEffect[], playerId: string): StateUpdate[] {

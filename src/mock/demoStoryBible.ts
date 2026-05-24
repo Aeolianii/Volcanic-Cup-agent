@@ -221,6 +221,7 @@ export const DEMO_STORY_BIBLE: StoryBible = {
       effects: [
         { type: "set_flag", target: "altar_discovered", value: true },
         { type: "reveal_event", target: "ancient_ritual_site", value: true },
+        { type: "add_knowledge", target: "all", value: "k5" },
         { type: "modify_metric", target: "holy_grail_influence", value: 25 },
         { type: "modify_metric", target: "truth_progress", value: 15 },
       ],

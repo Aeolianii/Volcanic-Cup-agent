@@ -491,7 +491,8 @@ function generateSuccessUpdates(
 
   if (["assassinate", "execute", "sacrifice"].includes(action.action_type) && action.target) {
     const deathMode = getDeathConsequenceMode(bible);
-    if (deathMode !== "lethal") {
+    const lethalActionAllowed = bible.runtime_modules?.enabled.character_death === true && action.risk_level === "high";
+    if (deathMode !== "lethal" && !lethalActionAllowed) {
       const label = nonLethalFailureLabel(bible);
       if (deathMode !== "comic_setback") {
         updates.push({
@@ -518,6 +519,9 @@ function generateSuccessUpdates(
       fact_id: action.action_type,
       metric: action.intent,
     });
+    if (action.action_type === "assassinate") {
+      updates.push({ type: "set_flag", flag: "assassination_successful", value: true });
+    }
   }
 
   if (action.intent === "stop_ritual" || action.method === "ritual_interruption") {
@@ -744,8 +748,11 @@ function pushMetricsTowardBestEnding(updates: StateUpdate[], bible: StoryBible, 
 function buildPublicResult(action: StructuredAction, success: boolean, bible: StoryBible, state: WorldState): string {
   const actorName = formatEntityName(action.actor_id, bible, state);
   const targetName = formatEntityName(action.target, bible, state);
-  if (isReflectAction(action)) return `${actorName} clarified their priorities.`;
-  return `${actorName} ${success ? "succeeded" : "failed"} with ${action.action_type} against ${targetName}.`;
+  const verb = actionLabel(action.action_type);
+  if (isReflectAction(action)) return `${actorName}????????????????`;
+  return success
+    ? `${actorName}???${targetName}????${verb}???????????????`
+    : `${actorName}?????${targetName}???${verb}??????????????????????`;
 }
 
 function buildNPCPublicResult(proposal: ActionProposal, success: boolean, bible: StoryBible, state: WorldState): string {

@@ -13,6 +13,7 @@ import type {
   FactionRuntimeState,
 } from "@/types";
 import type { StoryBible } from "@/types";
+import { inferMaxRoundsForBible } from "./turnSystem";
 
 export function createWorldState(
   storyId: string,
@@ -125,6 +126,15 @@ export function createWorldState(
       player_advantage_scores: [],
       last_balance_turn: 0,
       recent_events: [],
+    },
+    turn_state: {
+      current_round: 1,
+      max_rounds: inferMaxRoundsForBible(bible),
+      actions_per_player: 2,
+      npc_actions_per_round: 2,
+      player_action_counts: {},
+      npc_action_counts: {},
+      round_history: [],
     },
   };
 }

@@ -29,11 +29,13 @@ export function FreeActionInput({
   };
 
   return (
-    <div className="panel">
-      <div className="flex items-center gap-2 mb-2">
-        <h3 className="font-fantasy text-amber-400 text-sm">自由行动</h3>
-        <span className="text-[10px] text-parchment-500 bg-midnight-700 px-1.5 py-0.5 rounded">
-          按 Enter 提交
+    <div className="panel bg-gradient-to-r from-midnight-800/70 via-midnight-800/80 to-midnight-800/70 border-amber-500/20">
+      <div className="flex items-center gap-2 mb-2.5">
+        <h3 className="font-fantasy text-amber-400 text-sm flex items-center gap-2">
+          <span>⚔️</span> 自由行动
+        </h3>
+        <span className="text-[10px] text-parchment-500 bg-midnight-700/70 px-2 py-0.5 rounded-full border border-midnight-500/40">
+          Enter 提交
         </span>
       </div>
       <div className="flex gap-2">
@@ -49,13 +51,20 @@ export function FreeActionInput({
         <button
           onClick={handleSubmit}
           disabled={disabled || !input.trim()}
-          className="btn-primary text-sm px-4 whitespace-nowrap disabled:opacity-60 disabled:cursor-wait"
+          className="btn-primary text-sm px-5 whitespace-nowrap"
         >
-          {disabled ? "处理中" : "执行行动"}
+          {disabled ? (
+            <span className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full border-2 border-midnight-900/30 border-t-midnight-900 animate-spin" />
+              处理中
+            </span>
+          ) : (
+            "执行行动"
+          )}
         </button>
       </div>
-      <p className="text-[10px] text-parchment-600 mt-1">
-        描述你想做什么，系统会自动解析为结构化行动。
+      <p className="text-[10px] text-parchment-600 mt-2">
+        描述你想做什么，系统会自动解析为结构化行动并判定结果。
       </p>
     </div>
   );

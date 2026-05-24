@@ -23,6 +23,8 @@ class RoomManager {
     maxPlayers: number = 4
   ): Room {
     const roomId = generateRoomCode();
+    const bible = this.storyBibles.get(storyBibleId);
+    const effectiveMaxPlayers = Math.max(maxPlayers, bible?.roles.length || maxPlayers);
 
     const room: Room = {
       room_id: roomId,
@@ -42,7 +44,7 @@ class RoomManager {
       status: "waiting",
       created_at: new Date().toISOString(),
       owner_id: ownerId,
-      max_players: maxPlayers,
+      max_players: effectiveMaxPlayers,
     };
 
     this.rooms.set(roomId, room);
@@ -111,8 +113,9 @@ class RoomManager {
     const bible = this.storyBibles.get(room.story_bible_id);
     if (!bible) return false;
 
-    // MVP allows a solo demo room. Every joined player must have selected a role.
-    if (room.players.some((p) => !p.role_id)) return false;
+    // MVP allows a solo demo room. Every real joined player must have selected a role.
+    if (room.players.some((p) => !p.is_ai && !p.role_id)) return false;
+    this.fillMissingRolesWithAIPlayers(room, bible);
 
     // Create world state
     const ws = createWorldState(bible.id, roomId, bible);
@@ -172,6 +175,33 @@ class RoomManager {
 
   getPlayer(roomId: string, playerId: string): Player | undefined {
     return this.rooms.get(roomId)?.players.find((p) => p.player_id === playerId);
+  }
+
+  private fillMissingRolesWithAIPlayers(room: Room, bible: StoryBible): void {
+    const takenRoleIds = new Set(room.players.map((player) => player.role_id).filter(Boolean));
+    for (const role of bible.roles) {
+      if (takenRoleIds.has(role.id)) continue;
+      const aiPlayerId = `ai_${role.id}`;
+      const existing = room.players.find((player) => player.player_id === aiPlayerId);
+      if (existing) {
+        existing.role_id = role.id;
+        existing.role = role;
+        existing.is_ai = true;
+        existing.is_ready = true;
+        continue;
+      }
+      room.players.push({
+        player_id: aiPlayerId,
+        name: `${role.name}（AI代演）`,
+        role_id: role.id,
+        role,
+        joined_at: new Date().toISOString(),
+        is_owner: false,
+        is_ready: true,
+        is_ai: true,
+      });
+      takenRoleIds.add(role.id);
+    }
   }
 }
 

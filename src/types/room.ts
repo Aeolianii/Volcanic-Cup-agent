@@ -28,6 +28,7 @@ export interface Player {
   joined_at: string;
   is_owner: boolean;
   is_ready: boolean;
+  is_ai?: boolean;
 }
 
 export interface PlayerView {
@@ -42,8 +43,17 @@ export interface PlayerView {
   runtime_modules?: StoryRuntimeModules;
   life_status: CharacterLifeStatus;
   ghost_mode: boolean;
+  turn_summary: PlayerTurnSummary;
   active_events: ActiveEvent[];
   suggested_actions: SuggestedAction[];
+}
+
+export interface PlayerTurnSummary {
+  current_round: number;
+  max_rounds: number;
+  actions_used: number;
+  actions_remaining: number;
+  actions_per_round: number;
 }
 
 export interface VisibleFaction extends Pick<Faction, "id" | "name" | "description" | "goals" | "relationships"> {

@@ -11,6 +11,7 @@ import type {
   StorySeed,
 } from "@/types";
 import { mockAIProvider } from "@/mock/mockAIProvider";
+import { buildAgentSkillSystemPrompt } from "@/agents/agentSkills";
 
 type ChatMessage = {
   role: "system" | "user";
@@ -23,17 +24,17 @@ const DEFAULT_MODEL = "deepseek-v4-pro";
 function getConfig() {
   return {
     apiKey:
-      process.env.DEEPSEEK_API_KEY ||
       process.env.OPENAI_COMPAT_API_KEY ||
+      process.env.DEEPSEEK_API_KEY ||
       process.env.OPENAI_API_KEY ||
       "",
     baseUrl:
-      process.env.DEEPSEEK_BASE_URL ||
       process.env.OPENAI_COMPAT_BASE_URL ||
+      process.env.DEEPSEEK_BASE_URL ||
       DEFAULT_BASE_URL,
     model:
-      process.env.DEEPSEEK_MODEL ||
       process.env.OPENAI_COMPAT_MODEL ||
+      process.env.DEEPSEEK_MODEL ||
       DEFAULT_MODEL,
   };
 }
@@ -59,16 +60,33 @@ async function chatJSON<T>(messages: ChatMessage[], fallback: T, maxTokens = 120
       }),
     });
 
-    if (!response.ok) throw new Error(`LLM request failed: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      throw new Error(`LLM request failed: ${response.status} ${errorText.slice(0, 400)}`);
+    }
 
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content !== "string") return fallback;
 
     return parseJSON(content, fallback);
-  } catch {
+  } catch (error) {
+    console.error("[LLM Provider] chatJSON fallback", {
+      error: error instanceof Error ? error.message : String(error),
+      baseUrl,
+      model,
+    });
     return fallback;
   }
+}
+
+export function applyRequestLLMConfig(headers: Headers): void {
+  const apiKey = headers.get("x-llm-api-key")?.trim();
+  const baseUrl = headers.get("x-llm-base-url")?.trim();
+  const model = headers.get("x-llm-model")?.trim();
+  if (apiKey) process.env.OPENAI_COMPAT_API_KEY = apiKey;
+  if (baseUrl) process.env.OPENAI_COMPAT_BASE_URL = baseUrl;
+  if (model) process.env.OPENAI_COMPAT_MODEL = model;
 }
 
 function parseJSON<T>(content: string, fallback: T): T {
@@ -99,17 +117,103 @@ function systemJSON(task: string): ChatMessage {
   };
 }
 
+function buildCleanNarrativeFallback(context: GMContext): GMNarrativeOutput {
+  const title = context.story_bible.title || "当前故事";
+  const round = context.current_round || context.current_turn || 1;
+  const chapter = context.current_chapter || 1;
+  const metricLine = (context.last_action?.metric_changes || [])
+    .filter((item) => typeof item.before !== "undefined" && typeof item.after !== "undefined")
+    .slice(0, 3)
+    .map((item) => `${item.label}: ${item.before} -> ${item.after}${typeof item.delta === "number" ? `（${item.delta >= 0 ? "+" : ""}${item.delta}）` : ""}`)
+    .join("；");
+  const activeEvent = context.world_state_summary.active_events[0] ||
+    context.progression_guidance?.next_events?.[0]?.title ||
+    "当前场景";
+  const roles = context.story_bible.roles.slice(0, 4);
+  const firstRole = roles[0]?.name || "关键角色";
+  const secondRole = roles[1]?.name || "另一位角色";
+  const profile = String(context.runtime_modules?.genre_profile || context.story_bible.genre_profile || "");
+  const isRelationship = /romance|relationship|campus/.test(profile);
+  const isMystery = /mystery|investigation/.test(profile);
+
+  const narrationParts = [
+    `第 ${chapter} 章 · 第 ${round} 回合。`,
+    isRelationship
+      ? `${title}的局面被这次选择轻轻推开了一道缝。人物之间的态度、记忆和未说出口的话，正在成为下一步的真正压力。`
+      : isMystery
+        ? `${title}的线索链被推进了一步。新的证词与旧痕迹开始互相校验，真相仍需要继续拆解。`
+        : `${title}的局势出现新的推进。公开选择会改变资源、立场与接下来可触发的事件。`,
+  ];
+  if (metricLine) narrationParts.push(`数值变化：${metricLine}。`);
+  if (context.last_action?.public_result) narrationParts.push(context.last_action.public_result);
+
+  const suggested_actions = isRelationship
+    ? [
+        action(`试探${firstRole}的真实态度`, "talk", roles[0]?.id || activeEvent, "careful_conversation", "clarify_feelings", "推动真心归位或继续保留误会"),
+        action(`向${secondRole}核对一段记忆`, "persuade", roles[1]?.id || activeEvent, "memory_crosscheck", "verify_memory", "推动记忆归位，也可能暴露新的情感矛盾"),
+        action("公开回应今晚的选择", "confess", activeEvent, "public_response", "shift_group_consensus", "把关系推向坦白、逃避或错付的不同结局方向"),
+      ]
+    : isMystery
+      ? [
+          action("复核最矛盾的证词", "investigate", activeEvent, "cross_check_testimony", "advance_truth", "提高真相破解度并改变嫌疑分布"),
+          action(`单独询问${firstRole}`, "interrogate", roles[0]?.id || activeEvent, "targeted_questioning", "test_suspicion", "推动嫌疑值变化，也可能解锁私聊线索"),
+          action("搜索核心场景遗漏物", "search", activeEvent, "scene_sweep", "find_evidence", "提升探索度并补全证据链"),
+        ]
+      : [
+          action("争取公开支持", "gain_support", activeEvent, "public_positioning", "improve_position", "推动己方优势但可能引发反制"),
+          action(`试探${firstRole}的立场`, "persuade", roles[0]?.id || activeEvent, "private_negotiation", "shift_alliance", "改变关系或阵营走向"),
+          action("处理当前危机节点", "command", activeEvent, "decisive_order", "advance_event_chain", "推进章节事件并改变局势指标"),
+        ];
+
+  return {
+    narration: narrationParts.join("\n\n"),
+    suggested_events: [],
+    revealed_information: [],
+    suggested_actions,
+    mood: isRelationship ? "intimate" : isMystery ? "tense" : "strategic",
+  };
+}
+
+function action(
+  label: string,
+  action_type: string,
+  target: string,
+  method: string,
+  intent: string,
+  context: string
+): GMNarrativeOutput["suggested_actions"][number] {
+  return {
+    label,
+    action_type,
+    target,
+    method,
+    intent,
+    risk_level: "medium",
+    context,
+  };
+}
+
 export const llmAIProvider: AIProvider = {
   async generateStoryBible(seed: StorySeed): Promise<StoryBible> {
     return mockAIProvider.generateStoryBible(seed);
   },
 
   async generateNarrative(context: GMContext): Promise<GMNarrativeOutput> {
-    const fallback = await mockAIProvider.generateNarrative(context);
+    const fallback = buildCleanNarrativeFallback(context);
     return chatJSON<GMNarrativeOutput>(
       [
         systemJSON(
-          "Generate a concise GM narrative from the provided Story Bible summary and World State summary. The GM can narrate and suggest actions, but cannot modify World State. Required fields: narration, suggested_events, revealed_information, suggested_actions, mood."
+          [
+            buildAgentSkillSystemPrompt("gm-narrative-skill"),
+            "Generate a concise GM narrative from the provided Story Bible summary and World State summary.",
+            "Match the genre and tone. Romance/relationship stories should focus on memory, trust, hesitation, affection, confession, regret, and choices; do not use war, faction, dark-current, rule-discovery, or conspiracy wording unless the story context explicitly contains it.",
+            "Do not expose internal IDs such as player_123, npc_1, role_2, metric ids, flag names, JSON keys, or raw imported script text.",
+            "If last_action.metric_changes is present, include the exact before -> after values for visible metrics and explain why the changes are continuous and logical.",
+            "Every suggested action must be concrete and playable now. It must name a visible role, event, place, relationship, clue, metric, or ending direction from the context.",
+            "Do not output vague template actions such as 调查当前线索, 调查当前疑点, 整理个人目标, 推进关系线, or 寻找关键见证者 unless you replace them with the actual target and consequence.",
+            "Provide 3 to 5 suggested_actions. Make them push the story toward different possible ending directions.",
+            "Required fields: narration, suggested_events, revealed_information, suggested_actions, mood.",
+          ].join("\n")
         ),
         { role: "user", content: JSON.stringify(context) },
       ],
@@ -124,6 +228,7 @@ export const llmAIProvider: AIProvider = {
         {
           role: "system",
           content: [
+            buildAgentSkillSystemPrompt("npc-agent-designer"),
             "You are one independent NPC agent in a multiplayer story game.",
             "You must role-play ONLY this NPC. You do not know the full Story Bible, ending conditions, future events, hidden truth, private player actions, or other NPC secrets.",
             "Your entire available knowledge is the JSON user payload: your own goal, your own secret_goal, and local_view.",

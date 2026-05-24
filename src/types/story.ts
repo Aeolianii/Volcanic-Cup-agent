@@ -12,6 +12,7 @@ export interface StorySeed {
   characters: string;
   world_setting: string;
   source_type: "manual" | "ai_generated";
+  full_text?: string;
 }
 
 export interface StoryBible {

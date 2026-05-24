@@ -30,6 +30,8 @@ export function checkEndings(state: WorldState, bible: StoryBible): EndingResult
   // Sort endings by priority (descending)
   const sortedEndings = [...bible.endings].sort((a, b) => b.priority - a.priority);
 
+  let bestPartial: { ending: Ending; progress: number } | null = null;
+
   for (const ending of sortedEndings) {
     const met = ending.conditions.filter((c) => evaluateEndingCondition(c, state));
     const progress = ending.conditions.length > 0
@@ -43,9 +45,13 @@ export function checkEndings(state: WorldState, bible: StoryBible): EndingResult
       total_conditions: ending.conditions.length,
       progress,
     });
+    if (!bestPartial || progress > bestPartial.progress) {
+      bestPartial = { ending, progress };
+    }
 
-    // First ending with all conditions met wins (highest priority)
-    if (met.length === ending.conditions.length) {
+    // First ending with all conditions met wins (highest priority), but not before the story has
+    // reached its final act. This prevents imported short-form scripts from ending after one action.
+    if (met.length === ending.conditions.length && canResolveEndingNow(state, bible)) {
       return {
         reached: true,
         ending,
@@ -54,11 +60,32 @@ export function checkEndings(state: WorldState, bible: StoryBible): EndingResult
     }
   }
 
+  if (
+    state.turn_state &&
+    state.turn_state.current_round >= state.turn_state.max_rounds &&
+    bestPartial
+  ) {
+    return {
+      reached: true,
+      ending: bestPartial.ending,
+      all_endings_status: statuses,
+    };
+  }
+
   return {
     reached: false,
     ending: null,
     all_endings_status: statuses,
   };
+}
+
+function canResolveEndingNow(state: WorldState, bible: StoryBible): boolean {
+  if (state.flags.force_ending === true || state.flags.final_decision_submitted === true) return true;
+  if (!state.turn_state) return state.chapter >= Math.max(3, Math.ceil(bible.chapters.length * 0.65));
+
+  const finalActRound = Math.max(4, Math.ceil(state.turn_state.max_rounds * 0.65));
+  const finalActChapter = Math.max(3, Math.ceil(bible.chapters.length * 0.65));
+  return state.turn_state.current_round >= finalActRound || state.chapter >= finalActChapter;
 }
 
 export function evaluateVictorySettlement(
@@ -87,7 +114,6 @@ export function evaluateVictorySettlement(
     );
     const personalVictory = Boolean(
       reachedEnding &&
-      characterState?.status !== "dead" &&
       (
         !personalCondition ||
         personalCondition.condition_refs.some((ref) =>
@@ -108,7 +134,7 @@ export function evaluateVictorySettlement(
       notes: [
         factionVictory ? "阵营目标达成" : "阵营目标未完全达成",
         personalVictory ? "个人目标达成" : "个人目标未达成",
-        characterState?.status === "dead" ? "角色已死亡，仍可保留阵营胜利结算" : "",
+        characterState?.status === "dead" ? "角色已死亡，仍可保留阵营胜利与个人胜利结算" : "",
       ].filter(Boolean),
     };
   });

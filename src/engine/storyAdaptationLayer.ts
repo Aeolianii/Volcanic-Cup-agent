@@ -76,9 +76,9 @@ export function buildRuntimeModules(bible: StoryBible, sourceText = ""): StoryRu
       factions: hasFactions,
       private_chat: true,
       relationship_routes: isRelationship || profile === "workplace" || isComedy,
-      combat: isLethal || profile === "combat_adventure",
-      character_death: isLethal,
-      ghost_mode: isLethal,
+      combat: true,
+      character_death: true,
+      ghost_mode: true,
       failure_screen: !isComedy,
       comic_setbacks: isComedy,
       gm_balancer: true,
@@ -93,7 +93,7 @@ export function buildRuntimeModules(bible: StoryBible, sourceText = ""): StoryRu
       : hasMystery
       ? "investigation_failure"
       : "social_setback",
-    disabled_action_types: isLethal ? [] : ["assassinate", "execute", "sacrifice", "ambush", "duel"],
+    disabled_action_types: isLethal ? [] : ["execute", "sacrifice"],
     consequence_labels: {
       lethal: "角色死亡",
       non_lethal: isComedy ? "整活翻车" : isRelationship ? "攻略失败" : "行动受挫",

@@ -3,6 +3,7 @@ import { buildNPCLocalView } from "./npcKnowledgeFilter";
 import { generateNPCActionProposal } from "./npcPlanner";
 import { processNPCAction } from "./ruleEngine";
 import { applyUpdates, createInitialNPCRuntime } from "./worldStateEngine";
+import { canNPCTakeAction, consumeNPCAction, ensureTurnState } from "./turnSystem";
 import type { MemoryEntry, NPC, NPCRuntimeState, StateUpdate } from "@/types";
 
 export interface NPCTurnResult {
@@ -19,36 +20,61 @@ export async function runDueNPCTurns(
   bible: StoryBible,
   aiProvider: AIProvider
 ): Promise<{ worldState: WorldState; npcResults: NPCTurnResult[] }> {
-  let worldState = ensureNPCRuntimeState(state, bible);
+  let worldState = ensureNPCRuntimeState(ensureTurnState(state), bible);
   const npcResults: NPCTurnResult[] = [];
 
   for (const npc of bible.npcs) {
-    const runtime = worldState.npc_runtime_state[npc.id];
-    const frequency = runtime?.action_frequency || 2;
-
     worldState = observeAndThink(npc, worldState, bible);
+    const runtime = worldState.npc_runtime_state[npc.id];
+    const characterState = worldState.character_states[npc.id];
 
-    if (worldState.turn === 0 || worldState.turn % frequency !== 0 || runtime?.last_action_turn === worldState.turn) {
+    if (worldState.turn === 0 || characterState?.ghost_mode || !canNPCTakeAction(worldState, npc.id)) {
       npcResults.push({ npc_id: npc.id, npc_name: npc.name, skipped: true });
       continue;
     }
 
-    const localView = buildNPCLocalView(npc, worldState, bible);
-    const proposal = await generateNPCActionProposal(npc, localView, aiProvider);
-    const result = processNPCAction(proposal, worldState, bible);
-    worldState = applyUpdates(worldState, result.state_updates);
+    while (canNPCTakeAction(worldState, npc.id)) {
+      const localView = buildNPCLocalView(npc, worldState, bible);
+      const proposal = await withTimeout(
+        generateNPCActionProposal(npc, localView, aiProvider),
+        8000
+      ).catch(() => null);
+      if (!proposal) {
+        worldState = consumeNPCAction(worldState, npc.id);
+        npcResults.push({ npc_id: npc.id, npc_name: npc.name, skipped: true });
+        break;
+      }
+      const result = processNPCAction(proposal, worldState, bible);
+      worldState = applyUpdates(worldState, result.state_updates);
+      worldState = consumeNPCAction(worldState, npc.id);
 
-    npcResults.push({
-      npc_id: npc.id,
-      npc_name: npc.name,
-      skipped: false,
-      proposal,
-      result,
-      public_result: result.public_result,
-    });
+      npcResults.push({
+        npc_id: npc.id,
+        npc_name: npc.name,
+        skipped: false,
+        proposal,
+        result,
+        public_result: result.public_result,
+      });
+    }
   }
 
   return { worldState, npcResults };
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("NPC agent timeout")), timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
 }
 
 function ensureNPCRuntimeState(state: WorldState, bible: StoryBible): WorldState {

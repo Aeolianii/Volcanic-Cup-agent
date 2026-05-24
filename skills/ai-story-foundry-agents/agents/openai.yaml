@@ -1,0 +1,3 @@
+display_name: AI Story Foundry Agents
+short_description: Work inside the project narrative engine with safe GM, NPC, Story Bible, validator, and playtest contracts.
+default_prompt: Use this skill when editing or reviewing the AI Story Foundry game. Keep AI outputs as proposals, preserve knowledge boundaries, validate Story Bible reachability, and verify engine changes with build and playtest checks.

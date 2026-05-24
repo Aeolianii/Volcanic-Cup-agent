@@ -9,7 +9,14 @@ import type { PlayabilityReport } from "@/engine/storyPlayabilityAnalyzer";
 
 export default function GeneratePage() {
   return (
-    <Suspense fallback={<div className="panel text-center">加载中...</div>}>
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <span className="w-10 h-10 rounded-full border-2 border-amber-500/20 border-t-amber-400 animate-spin" />
+          <p className="text-parchment-500">加载中...</p>
+        </div>
+      </div>
+    }>
       <GeneratePageContent />
     </Suspense>
   );
@@ -21,6 +28,7 @@ function GeneratePageContent() {
   const isDemo = searchParams.get("demo") === "true";
 
   const [storyIdea, setStoryIdea] = useState("");
+  const [fullScriptText, setFullScriptText] = useState("");
   const [genre, setGenre] = useState("");
   const [opening, setOpening] = useState("");
   const [ending, setEnding] = useState("");
@@ -38,7 +46,6 @@ function GeneratePageContent() {
 
     try {
       if (isDemo) {
-        // Use demo story directly
         setBible(DEMO_STORY_BIBLE);
         setValidation({ valid: true, errors: [], warnings: [] });
         setPlayability(null);
@@ -51,6 +58,7 @@ function GeneratePageContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           story_idea: storyIdea,
+          full_script_text: fullScriptText,
           genre,
           opening,
           ending,
@@ -108,14 +116,24 @@ function GeneratePageContent() {
   // Pre-fill demo
   if (isDemo && !bible) {
     return (
-      <div className="max-w-2xl mx-auto">
-        <div className="panel text-center py-12">
-          <h2 className="font-fantasy text-2xl text-amber-400 mb-4">失落圣杯之夜</h2>
-          <p className="text-parchant-400 mb-6">
-            西幻 + 权谋 + 推理 · 4 角色 · 4 结局
-          </p>
-          <button onClick={handleGenerate} disabled={loading} className="btn-primary text-lg px-8">
-            {loading ? "加载中..." : "加载 Demo"}
+      <div className="max-w-2xl mx-auto animate-fade-in">
+        <div className="panel text-center py-16 relative overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-amber-500/40 to-transparent rounded-full" />
+          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-400/20 to-purple-600/20 border border-purple-500/30 flex items-center justify-center text-3xl">
+            🏰
+          </div>
+          <h2 className="font-fantasy text-2xl text-amber-400 mb-3">失落圣杯之夜</h2>
+          <p className="text-parchment-400 mb-2">西幻 + 权谋 + 推理</p>
+          <p className="text-parchment-500 text-sm mb-8">4 角色 · 4 结局</p>
+          <button onClick={handleGenerate} disabled={loading} className="btn-primary text-lg px-10">
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full border-2 border-midnight-900/30 border-t-midnight-900 animate-spin" />
+                加载中...
+              </span>
+            ) : (
+              "加载 Demo"
+            )}
           </button>
         </div>
       </div>
@@ -124,45 +142,66 @@ function GeneratePageContent() {
 
   if (bible) {
     return (
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
         {/* Story Bible Summary */}
-        <div className="panel">
-          <h2 className="font-fantasy text-2xl text-amber-400 mb-4">{bible.title}</h2>
-          <p className="text-parchant-400 mb-4">{bible.world_setting.atmosphere}</p>
+        <div className="panel relative overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-1 bg-gradient-to-r from-transparent via-amber-500/30 to-transparent rounded-full" />
+          <h2 className="font-fantasy text-2xl text-amber-400 mb-3">{bible.title}</h2>
+          <p className="text-parchment-400 mb-6 leading-relaxed">{bible.world_setting.atmosphere}</p>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <h3 className="text-sm text-amber-500 mb-2">角色 ({bible.roles.length})</h3>
-              <ul className="text-sm text-parchant-300 space-y-1">
+          {/* Roles & NPCs */}
+          <div className="grid grid-cols-2 gap-5 mb-5">
+            <div className="p-4 rounded-xl bg-midnight-700/30 border border-midnight-600/30">
+              <h3 className="text-sm text-amber-400 font-fantasy mb-3 flex items-center gap-2">
+                <span>🎭</span> 角色 ({bible.roles.length})
+              </h3>
+              <ul className="text-sm text-parchment-300 space-y-2">
                 {bible.roles.map((r) => (
-                  <li key={r.id}>• {r.name} — {r.public_identity}</li>
+                  <li key={r.id} className="flex items-start gap-2">
+                    <span className="text-amber-600 mt-0.5">•</span>
+                    <div>
+                      <span className="text-parchment-200 font-medium">{r.name}</span>
+                      <span className="text-parchment-500 text-xs ml-2">{r.public_identity}</span>
+                    </div>
+                  </li>
                 ))}
               </ul>
             </div>
-            <div>
-              <h3 className="text-sm text-amber-500 mb-2">NPC ({bible.npcs.length})</h3>
-              <ul className="text-sm text-parchant-300 space-y-1">
+            <div className="p-4 rounded-xl bg-midnight-700/30 border border-midnight-600/30">
+              <h3 className="text-sm text-amber-400 font-fantasy mb-3 flex items-center gap-2">
+                <span>👥</span> NPC ({bible.npcs.length})
+              </h3>
+              <ul className="text-sm text-parchment-300 space-y-2">
                 {bible.npcs.map((n) => (
-                  <li key={n.id}>• {n.name} — {n.public_identity}</li>
+                  <li key={n.id} className="flex items-start gap-2">
+                    <span className="text-amber-600 mt-0.5">•</span>
+                    <div>
+                      <span className="text-parchment-200 font-medium">{n.name}</span>
+                      <span className="text-parchment-500 text-xs ml-2">{n.public_identity}</span>
+                    </div>
+                  </li>
                 ))}
               </ul>
             </div>
           </div>
 
+          {/* Runtime Modules */}
           {bible.runtime_modules && (
-            <div className="mb-4 p-3 rounded border border-midnight-600 bg-midnight-700/30">
-              <h3 className="text-sm text-amber-500 mb-2">玩法模块</h3>
-              <div className="flex flex-wrap gap-1 text-xs">
-                <span className="bg-midnight-600 px-2 py-1 rounded text-parchant-300">
+            <div className="mb-5 p-4 rounded-xl border border-midnight-600/40 bg-midnight-700/20">
+              <h3 className="text-sm text-amber-400 font-fantasy mb-3 flex items-center gap-2">
+                <span>⚙️</span> 玩法模块
+              </h3>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="bg-amber-500/10 text-amber-300 px-2.5 py-1.5 rounded-full border border-amber-500/20">
                   类型：{runtimeProfileLabel(bible.runtime_modules.genre_profile)}
                 </span>
-                <span className="bg-midnight-600 px-2 py-1 rounded text-parchant-300">
+                <span className="bg-amber-500/10 text-amber-300 px-2.5 py-1.5 rounded-full border border-amber-500/20">
                   后果：{consequenceModeLabel(bible.runtime_modules.consequence_mode)}
                 </span>
                 {Object.entries(bible.runtime_modules.enabled)
                   .filter(([, enabled]) => enabled)
                   .map(([key]) => (
-                    <span key={key} className="bg-midnight-600 px-2 py-1 rounded text-parchant-300">
+                    <span key={key} className="bg-midnight-600/60 text-parchment-300 px-2.5 py-1.5 rounded-full border border-midnight-500/40">
                       {moduleLabel(key)}
                     </span>
                   ))}
@@ -170,38 +209,61 @@ function GeneratePageContent() {
             </div>
           )}
 
+          {/* Playability */}
           {playability && (
-            <div className="mb-4 p-3 rounded border border-amber-600/40 bg-amber-900/10">
-              <h3 className="text-sm text-amber-400 mb-1">可玩性分析：{playability.merged.playable_score}/100</h3>
+            <div className="mb-5 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+              <h3 className="text-sm text-amber-400 font-fantasy mb-3 flex items-center gap-2">
+                <span>📊</span> 可玩性分析
+                <span className={`text-lg font-bold ml-auto ${
+                  playability.merged.playable_score >= 70 ? "text-emerald-400" :
+                  playability.merged.playable_score >= 40 ? "text-amber-400" : "text-red-400"
+                }`}>
+                  {playability.merged.playable_score}/100
+                </span>
+              </h3>
               {playability.merged.design_notes.length > 0 && (
-                <ul className="text-xs text-parchant-400 list-disc list-inside mb-2">
+                <ul className="text-xs text-parchment-400 space-y-1 mb-3">
                   {playability.merged.design_notes.map((note, index) => (
-                    <li key={index}>{note}</li>
+                    <li key={index} className="flex items-start gap-1.5">
+                      <span className="text-amber-600 mt-0.5">•</span>
+                      {note}
+                    </li>
                   ))}
                 </ul>
               )}
               {playability.merged.suggested_fixes.length > 0 && (
-                <p className="text-xs text-parchant-500">
+                <p className="text-xs text-parchment-500 border-t border-amber-500/10 pt-2">
                   建议：{playability.merged.suggested_fixes.slice(0, 3).join("；")}
                 </p>
               )}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <h3 className="text-sm text-amber-500 mb-2">阵营</h3>
-              <ul className="text-sm text-parchant-300">
+          {/* Factions & Endings */}
+          <div className="grid grid-cols-2 gap-5 mb-5">
+            <div className="p-4 rounded-xl bg-midnight-700/30 border border-midnight-600/30">
+              <h3 className="text-sm text-amber-400 font-fantasy mb-3 flex items-center gap-2">
+                <span>🏰</span> 阵营
+              </h3>
+              <ul className="text-sm text-parchment-300 space-y-1.5">
                 {bible.factions.map((f) => (
-                  <li key={f.id}>• {f.name}</li>
+                  <li key={f.id} className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    {f.name}
+                  </li>
                 ))}
               </ul>
             </div>
-            <div>
-              <h3 className="text-sm text-amber-500 mb-2">结局</h3>
-              <ul className="text-sm text-parchant-300">
+            <div className="p-4 rounded-xl bg-midnight-700/30 border border-midnight-600/30">
+              <h3 className="text-sm text-amber-400 font-fantasy mb-3 flex items-center gap-2">
+                <span>🎬</span> 结局
+              </h3>
+              <ul className="text-sm text-parchment-300 space-y-1.5">
                 {bible.endings.map((e) => (
-                  <li key={e.id}>• {e.title}</li>
+                  <li key={e.id} className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    {e.title}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -209,14 +271,25 @@ function GeneratePageContent() {
 
           {/* Validation */}
           {validation && (
-            <div className={`p-3 rounded border ${validation.valid ? "border-green-600/50 bg-green-900/10" : "border-red-600/50 bg-red-900/10"}`}>
-              <h4 className="text-sm font-medium mb-1">
-                {validation.valid ? "✅ 校验通过" : "❌ 校验未通过"}
+            <div className={`p-4 rounded-xl border ${
+              validation.valid
+                ? "border-emerald-500/30 bg-emerald-500/5"
+                : "border-red-500/30 bg-red-500/5"
+            }`}>
+              <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                {validation.valid ? (
+                  <span className="text-emerald-400">✅ 校验通过</span>
+                ) : (
+                  <span className="text-red-400">❌ 校验未通过</span>
+                )}
               </h4>
               {validation.errors.length > 0 && (
-                <ul className="text-xs text-red-400 list-disc list-inside">
+                <ul className="text-xs text-red-400 space-y-1">
                   {validation.errors.map((e, i) => (
-                    <li key={i}>{e.field}: {e.message}</li>
+                    <li key={i} className="flex items-start gap-1.5">
+                      <span className="shrink-0">•</span>
+                      <span className="font-mono text-red-500/70">{e.field}</span>: {e.message}
+                    </li>
                   ))}
                 </ul>
               )}
@@ -227,7 +300,7 @@ function GeneratePageContent() {
         <button
           onClick={handleCreateRoom}
           disabled={validation?.valid === false || playability?.merged.playable === false}
-          className="btn-primary w-full text-lg py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn-primary w-full py-3.5 text-lg font-fantasy tracking-wider"
         >
           创建房间
         </button>
@@ -237,12 +310,27 @@ function GeneratePageContent() {
 
   // Input form
   return (
-    <div className="max-w-2xl mx-auto">
-      <h2 className="font-fantasy text-2xl text-amber-400 mb-6 text-center">创建故事</h2>
+    <div className="max-w-2xl mx-auto animate-fade-in">
+      <div className="text-center mb-8">
+        <h2 className="font-fantasy text-2xl text-amber-400 mb-2">创建故事</h2>
+        <p className="text-parchment-500 text-sm">填写故事设定，AI 将为你生成完整的 Story Bible</p>
+      </div>
 
-      <div className="panel space-y-4">
+      <div className="panel space-y-5">
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">故事创意</label>
+          <label className="text-sm text-parchment-300 mb-1.5 block font-medium">完整剧本杀文本</label>
+          <textarea
+            value={fullScriptText}
+            onChange={(e) => setFullScriptText(e.target.value)}
+            placeholder="可直接粘贴完整剧本杀文本：基础信息、世界观、人物人设、人物羁绊、主持人开场、开本流程、群像结局、核心真相等。系统会识别并转成可执行 Story Bible。"
+            className="input-field h-44 resize-y"
+          />
+        </div>
+
+        <div className="border-t border-midnight-600/30 pt-1" />
+
+        <div>
+          <label className="text-sm text-parchment-300 mb-1.5 block font-medium">故事创意</label>
           <textarea
             value={storyIdea}
             onChange={(e) => setStoryIdea(e.target.value)}
@@ -251,19 +339,31 @@ function GeneratePageContent() {
           />
         </div>
 
-        <div>
-          <label className="text-sm text-parchant-300 mb-1 block">题材</label>
-          <input
-            type="text"
-            value={genre}
-            onChange={(e) => setGenre(e.target.value)}
-            placeholder="可选，例如：校园言情、搞笑、推理、权谋"
-            className="input-field"
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm text-parchment-300 mb-1.5 block font-medium">题材</label>
+            <input
+              type="text"
+              value={genre}
+              onChange={(e) => setGenre(e.target.value)}
+              placeholder="校园言情、推理、权谋..."
+              className="input-field"
+            />
+          </div>
+          <div>
+            <label className="text-sm text-parchment-300 mb-1.5 block font-medium">角色（逗号分隔）</label>
+            <input
+              type="text"
+              value={characters}
+              onChange={(e) => setCharacters(e.target.value)}
+              placeholder="王子, 圣女, 刺客, 骑士"
+              className="input-field"
+            />
+          </div>
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">开场设定</label>
+          <label className="text-sm text-parchment-300 mb-1.5 block font-medium">开场设定</label>
           <textarea
             value={opening}
             onChange={(e) => setOpening(e.target.value)}
@@ -273,7 +373,7 @@ function GeneratePageContent() {
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">结局方向</label>
+          <label className="text-sm text-parchment-300 mb-1.5 block font-medium">结局方向</label>
           <textarea
             value={ending}
             onChange={(e) => setEnding(e.target.value)}
@@ -283,18 +383,7 @@ function GeneratePageContent() {
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">角色（逗号分隔）</label>
-          <input
-            type="text"
-            value={characters}
-            onChange={(e) => setCharacters(e.target.value)}
-            placeholder="王子, 圣女, 刺客, 骑士"
-            className="input-field"
-          />
-        </div>
-
-        <div>
-          <label className="text-sm text-parchant-300 mb-1 block">世界观设定</label>
+          <label className="text-sm text-parchment-300 mb-1.5 block font-medium">世界观设定</label>
           <textarea
             value={worldSetting}
             onChange={(e) => setWorldSetting(e.target.value)}
@@ -304,17 +393,24 @@ function GeneratePageContent() {
         </div>
 
         {error && (
-          <div className="bg-red-900/20 border border-red-600/50 rounded p-3 text-sm text-red-400">
+          <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-4 text-sm text-red-400 animate-fade-in">
             {error}
           </div>
         )}
 
         <button
           onClick={handleGenerate}
-          disabled={loading || (!isDemo && !storyIdea && !genre && !opening && !worldSetting)}
-          className="btn-primary w-full py-3"
+          disabled={loading || (!isDemo && !fullScriptText && !storyIdea && !genre && !opening && !worldSetting)}
+          className="btn-primary w-full py-3.5 text-lg font-fantasy tracking-wider"
         >
-          {loading ? "生成中..." : "生成 Story Bible"}
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="w-4 h-4 rounded-full border-2 border-midnight-900/30 border-t-midnight-900 animate-spin" />
+              生成中...
+            </span>
+          ) : (
+            "生成 Story Bible"
+          )}
         </button>
       </div>
     </div>

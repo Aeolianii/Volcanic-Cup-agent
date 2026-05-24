@@ -22,6 +22,7 @@ export interface WorldState {
   faction_states: Record<string, FactionRuntimeState>;
   communication_state: CommunicationState;
   balance_state: BalanceState;
+  turn_state: TurnState;
 }
 
 export interface EventState {
@@ -100,6 +101,22 @@ export interface FactionRuntimeState {
 export interface CommunicationState {
   unlocked_private_chats: PrivateChatUnlock[];
   channel_membership: Record<string, string[]>;
+}
+
+export interface TurnState {
+  current_round: number;
+  max_rounds: number;
+  actions_per_player: number;
+  npc_actions_per_round: number;
+  player_action_counts: Record<string, number>;
+  npc_action_counts: Record<string, number>;
+  round_history: RoundHistoryEntry[];
+}
+
+export interface RoundHistoryEntry {
+  round: number;
+  ended_at_turn: number;
+  reason: string;
 }
 
 export interface PrivateChatUnlock {

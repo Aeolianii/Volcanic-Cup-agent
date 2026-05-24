@@ -81,31 +81,35 @@ export function EvidencePanel({ evidence, knownFacts = [] }: EvidencePanelProps)
     .map(formatEvidence)
     .filter(Boolean);
 
-  if (allItems.length === 0) {
-    return (
-      <div className="panel">
-        <h3 className="font-fantasy text-amber-400 text-sm mb-2">已知线索</h3>
-        <p className="text-parchment-500 text-sm">尚未发现线索</p>
-      </div>
-    );
-  }
-
   return (
     <div className="panel">
-      <h3 className="font-fantasy text-amber-400 text-sm mb-2">
-        已知线索 ({allItems.length})
+      <h3 className="font-fantasy text-amber-400 text-sm flex items-center gap-2 mb-3">
+        <span>🔎</span> 已知线索
+        {allItems.length > 0 && (
+          <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded-full ml-auto">
+            {allItems.length}
+          </span>
+        )}
       </h3>
-      <div className="space-y-1.5">
-        {allItems.map((item, i) => (
-          <div
-            key={`${item}_${i}`}
-            className="flex items-start gap-2 p-1.5 rounded bg-midnight-700/30 border border-midnight-600/50"
-          >
-            <span className="text-amber-500 text-xs mt-0.5">•</span>
-            <span className="text-xs text-parchment-300">{item}</span>
-          </div>
-        ))}
-      </div>
+
+      {allItems.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-6 text-parchment-500 gap-1">
+          <span className="text-xl opacity-40">🔍</span>
+          <p className="text-sm">尚未发现线索</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {allItems.map((item, i) => (
+            <div
+              key={`${item}_${i}`}
+              className="flex items-start gap-2.5 p-2.5 rounded-lg bg-midnight-700/30 border border-midnight-600/30 hover:border-amber-500/20 hover:bg-midnight-700/50 transition-all duration-200"
+            >
+              <span className="text-amber-500/80 text-xs mt-0.5 shrink-0">◆</span>
+              <span className="text-xs text-parchment-300 leading-relaxed">{item}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

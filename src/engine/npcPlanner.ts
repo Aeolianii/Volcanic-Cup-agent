@@ -74,6 +74,27 @@ function behavioralPlanner(npc: NPC, localView: NPCLocalView): ActionProposal {
     };
   }
 
+  if (!topThreat && influenceMetricId) {
+    const delta = npc.behavior_style.aggression >= 60 || npc.behavior_style.deception >= 60 ? 7 : 4;
+    return {
+      npc_id: npc.id,
+      intention: `趁玩家尚未完全阻止局势，主动推进自己的结局方向：${localView.runtime.core_goal || npc.goal}`,
+      action_type: "accelerate_plan",
+      target: "public_situation",
+      method: localView.runtime.current_plan || "advance_hidden_agenda",
+      reasoning_visible: `${npc.name}没有发现立即威胁，于是把资源投入到有利于自身阵营或个人目标的长期计划。`,
+      risk_level: npc.behavior_style.caution >= 70 ? "low" : "medium",
+      visibility: npc.behavior_style.deception >= 50 ? "secret" : "partial",
+      requires_rule_check: true,
+      effect: {
+        type: "metric_change",
+        metric: influenceMetricId,
+        delta,
+        duration_turns: 0,
+      },
+    };
+  }
+
   if (threateningInvestigation && (topThreat?.level || 0) >= 45) {
     return {
       npc_id: npc.id,

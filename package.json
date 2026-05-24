@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "playtest": "node scripts/playtest.mjs",
     "start": "next start",
     "lint": "next lint"
   },

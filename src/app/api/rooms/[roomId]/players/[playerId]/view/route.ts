@@ -2,17 +2,21 @@ import { NextResponse } from "next/server";
 import { roomManager } from "@/lib/roomManager";
 import { generateGMNarrative } from "@/engine/aiGM";
 import { getAIProvider } from "@/lib/aiProvider";
+import { ensureTurnState, getPlayerActionsRemaining, getPlayerActionsUsed } from "@/engine/turnSystem";
 import { buildChatChannelsForPlayer, buildVisibleFactionsForPlayer } from "@/engine/knowledgeBoundary";
+import { sanitizeForPlayerDisplay, sanitizeSuggestedActionText } from "@/engine/displaySanitizer";
+import { applyRequestLLMConfig } from "@/lib/llmProvider";
 import type { Player, PlayerView, StoryBible, SuggestedActionForGM, WorldState } from "@/types";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { roomId: string; playerId: string } }
 ) {
   try {
+    applyRequestLLMConfig(request.headers);
     const { roomId, playerId } = params;
     const room = roomManager.getRoom(roomId);
-    const worldState = roomManager.getWorldState(roomId);
+    let worldState = roomManager.getWorldState(roomId);
     const player = roomManager.getPlayer(roomId, playerId);
 
     if (!room || !worldState || !player || !player.role) {
@@ -22,6 +26,7 @@ export async function GET(
       );
     }
 
+    worldState = ensureTurnState(worldState);
     const bible = roomManager.getStoryBible(room.story_bible_id);
     if (!bible) {
       return NextResponse.json(
@@ -72,7 +77,7 @@ export async function GET(
 
     const playerView: PlayerView = {
       role_sheet: player.role,
-      known_facts: normalizeKnownFacts(pk.known_facts, player, bible.world_setting.atmosphere, bible, worldState),
+      known_facts: normalizeKnownFacts(pk.known_facts, player, shortText(bible.world_setting.atmosphere, 260), bible, worldState),
       known_npcs: normalizeKnownNpcs(pk.known_npcs, bible),
       known_locations: pk.known_locations,
       evidence: pk.evidence.map((item) => normalizeKnowledgeItem(item, bible, worldState)),
@@ -82,6 +87,13 @@ export async function GET(
       runtime_modules: bible.runtime_modules,
       life_status: characterState?.status || "alive",
       ghost_mode: ghostMode,
+      turn_summary: {
+        current_round: worldState.turn_state.current_round,
+        max_rounds: worldState.turn_state.max_rounds,
+        actions_used: getPlayerActionsUsed(worldState, playerId),
+        actions_remaining: getPlayerActionsRemaining(worldState, playerId),
+        actions_per_round: worldState.turn_state.actions_per_player,
+      },
       active_events: worldState.events
         .filter((e) => {
           if (!e.triggered) return false;
@@ -109,7 +121,21 @@ export async function GET(
       })),
     };
 
-    return NextResponse.json({ success: true, player_view: playerView, gm_narrative: gmOutput });
+    return NextResponse.json({
+      success: true,
+      player_view: {
+        ...playerView,
+        known_facts: playerView.known_facts
+          .filter(isPublicSafeFact)
+          .map((fact) => sanitizeForPlayerDisplay(shortText(fact, 260), bible, worldState)),
+        suggested_actions: playerView.suggested_actions.map((action) => sanitizeSuggestedActionText(action, bible, worldState)),
+      },
+      gm_narrative: {
+        ...gmOutput,
+        narration: sanitizeForPlayerDisplay(gmOutput.narration, bible, worldState),
+        suggested_actions: gmOutput.suggested_actions.map((action) => sanitizeSuggestedActionText(action, bible, worldState)),
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { success: false, error: String(error) },
@@ -171,6 +197,17 @@ function normalizeKnowledgeItem(item: string, bible: StoryBible, worldState: Wor
     .replace(/\bconnected_location\b/g, "相关地点")
     .replace(/\bcurrent_event\b/g, "当前事件")
     .replace(/\ball_players\b/g, "所有玩家");
+}
+
+function shortText(text: string, max: number): string {
+  const trimmed = String(text || "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  return trimmed.length > max ? `${trimmed.slice(0, max)}...` : trimmed;
+}
+
+function isPublicSafeFact(fact: string): boolean {
+  const text = String(fact || "");
+  if (!text.trim() || text.length > 360) return false;
+  return !/剧本基础信息|完整人物羁绊|核心真相|四大群像结局|群像结局|开本流程|故事开篇|主持人开场词|结局一|结局二|结局三|结局四|男1[｜|]|男2[｜|]|女1[｜|]|女2[｜|]|女3[｜|]/.test(text);
 }
 
 function formatInternalId(id: string, bible: StoryBible, worldState: WorldState): string {
