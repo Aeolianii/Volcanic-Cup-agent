@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,22 +13,23 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body className="min-h-screen bg-gradient-to-b from-midnight-900 via-midnight-800 to-midnight-900">
-        <header className="border-b border-midnight-600 bg-midnight-900/90 backdrop-blur sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-            <a href="/" className="font-fantasy text-xl text-amber-500 tracking-wider">
+      <body className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(217,119,6,0.12),transparent_34%),linear-gradient(180deg,#17192b,#202338_48%,#151728)]">
+        <header className="sticky top-0 z-50 border-b border-midnight-500/60 bg-midnight-950/80 backdrop-blur-xl">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+            <a href="/" className="font-fantasy text-xl tracking-wider text-amber-300 transition-colors hover:text-amber-200">
               AI Story Engine
             </a>
-            <nav className="flex gap-4 text-sm text-parchant-300">
-              <a href="/" className="hover:text-amber-400 transition-colors">首页</a>
-              <a href="/generate" className="hover:text-amber-400 transition-colors">生成故事</a>
+            <nav className="flex gap-4 text-sm text-parchment-300">
+              <a href="/" className="transition-colors hover:text-amber-300">首页</a>
+              <a href="/generate" className="transition-colors hover:text-amber-300">生成故事</a>
             </nav>
           </div>
         </header>
-        <main className="max-w-7xl mx-auto px-4 py-6">
+        <main className="mx-auto max-w-7xl px-4 py-6">
           {children}
         </main>
       </body>
     </html>
   );
 }
+

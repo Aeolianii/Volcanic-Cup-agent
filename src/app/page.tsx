@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 export default function HomePage() {
   const router = useRouter();
-  const [showCreate, setShowCreate] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [playerName, setPlayerName] = useState("");
 
@@ -29,7 +28,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative left-1/2 isolate -my-6 flex min-h-[calc(100vh-3.25rem)] w-screen -translate-x-1/2 flex-col items-center justify-center overflow-hidden px-4 py-16">
+    <div className="relative left-1/2 isolate -my-6 flex min-h-[calc(100vh-3.25rem)] w-screen -translate-x-1/2 flex-col items-center justify-center overflow-hidden px-4 py-14 sm:py-20">
       <div
         aria-hidden="true"
         className="absolute inset-0 -z-30 bg-top bg-no-repeat"
@@ -43,107 +42,128 @@ export default function HomePage() {
         className="absolute inset-0 -z-20"
         style={{
           background:
-            "linear-gradient(90deg, rgba(10, 12, 24, 0.48), rgba(10, 12, 24, 0.1) 48%, rgba(10, 12, 24, 0.5)), linear-gradient(180deg, rgba(10, 12, 24, 0.34), rgba(10, 12, 24, 0.06) 44%, rgba(10, 12, 24, 0.62))",
+            "linear-gradient(90deg, rgba(8, 10, 22, 0.72), rgba(8, 10, 22, 0.28) 48%, rgba(8, 10, 22, 0.74)), linear-gradient(180deg, rgba(8, 10, 22, 0.42), rgba(8, 10, 22, 0.16) 42%, rgba(8, 10, 22, 0.82))",
         }}
       />
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 -z-20 h-1/3 bg-gradient-to-b from-transparent to-midnight-900"
+        className="absolute inset-x-0 bottom-0 -z-20 h-1/2 bg-gradient-to-b from-transparent via-midnight-900/70 to-midnight-900"
       />
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-midnight-950/0"
-      />
-      {/* Hero */}
-      <div className="text-center mb-12 drop-shadow-[0_2px_18px_rgba(0,0,0,0.85)]">
-        <h1 className="font-fantasy text-5xl text-amber-300 mb-4 tracking-wider">
-          AI Story Engine
-        </h1>
-        <p className="text-parchant-200 text-lg max-w-xl mx-auto leading-relaxed">
-          输入你的故事创意，AI 自动生成完整的互动叙事世界。
-          <br />
-          多人角色扮演，动态规则引擎，AI 驱动的 NPC 与 GM。
-          <br />
-          每个选择都将改变故事的走向。
-        </p>
-      </div>
 
-      {/* Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-3xl">
-        {/* Create Story */}
-        <button
-          onClick={handleCreateStory}
-          className="panel hover:border-amber-500/50 transition-all text-left group"
-        >
-          <div className="text-3xl mb-3">📖</div>
-          <h3 className="font-fantasy text-amber-400 text-lg mb-2 group-hover:text-amber-300">
-            创建故事
-          </h3>
-          <p className="text-parchant-500 text-sm">
-            输入世界观、角色和结局设定，由 AI 为你生成完整的 Story Bible。
+      <section className="w-full max-w-5xl">
+        <div className="mx-auto mb-10 max-w-2xl text-center drop-shadow-[0_2px_18px_rgba(0,0,0,0.85)]">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200/80">
+            AI powered roleplay engine
           </p>
-        </button>
-
-        {/* Quick Demo */}
-        <button
-          onClick={handleQuickDemo}
-          className="panel hover:border-amber-500/50 transition-all text-left group"
-        >
-          <div className="text-3xl mb-3">🏰</div>
-          <h3 className="font-fantasy text-amber-400 text-lg mb-2 group-hover:text-amber-300">
-            Demo 故事
-          </h3>
-          <p className="text-parchant-500 text-sm">
-            直接体验「失落圣杯之夜」——西幻权谋推理，4 个角色，多重结局。
+          <h1 className="font-fantasy text-4xl tracking-wide text-amber-200 sm:text-6xl">
+            AI Story Engine
+          </h1>
+          <p className="mx-auto mt-5 max-w-xl text-base leading-8 text-parchment-100/90 sm:text-lg">
+            输入故事创意，生成完整互动叙事世界。选择角色、推进线索、结算行动，让每一次决定都改变故事走向。
           </p>
-        </button>
-
-        {/* Join Room */}
-        <div className="panel text-left">
-          <div className="text-3xl mb-3">🚪</div>
-          <h3 className="font-fantasy text-amber-400 text-lg mb-2">加入房间</h3>
-          <p className="text-parchant-500 text-sm mb-3">
-            输入房间号和朋友一起游戏。
-          </p>
-          <input
-            type="text"
-            value={playerName}
-            onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="你的名字"
-            className="input-field text-sm mb-2"
-          />
-          <input
-            type="text"
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            placeholder="房间号 (6位)"
-            maxLength={6}
-            className="input-field text-sm mb-2"
-          />
-          <button
-            onClick={handleJoinRoom}
-            disabled={!joinCode.trim() || !playerName.trim()}
-            className="btn-primary text-sm w-full"
-          >
-            加入
-          </button>
         </div>
-      </div>
 
-      {/* Feature list */}
-      <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-        {[
-          { icon: "🎭", label: "多人角色扮演" },
-          { icon: "🧠", label: "AI GM 叙事" },
-          { icon: "⚔️", label: "动态规则引擎" },
-          { icon: "🗺️", label: "多重结局" },
-        ].map((f) => (
-          <div key={f.label} className="panel">
-            <div className="text-2xl mb-1">{f.icon}</div>
-            <p className="text-xs text-parchant-400">{f.label}</p>
+        <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
+          <button
+            onClick={handleCreateStory}
+            className="panel interactive-card group relative min-h-[240px] overflow-hidden border-amber-500/30 bg-gradient-to-br from-midnight-800/90 via-midnight-800/78 to-midnight-900/92 text-left"
+          >
+            <span className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-amber-500/10 blur-2xl transition-transform duration-300 group-hover:scale-125" />
+            <span className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-amber-500/8 to-transparent" />
+            <div className="relative flex h-full flex-col">
+              <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-amber-300/25 bg-amber-500/15 text-2xl text-amber-100 shadow-[0_10px_30px_rgba(217,119,6,0.15)] transition-transform duration-200 group-hover:scale-105">
+                ✦
+              </span>
+              <div className="mb-5 inline-flex w-fit rounded-full border border-amber-300/25 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/90">
+                推荐入口
+              </div>
+              <h2 className="section-title mb-3 text-2xl transition-colors group-hover:text-amber-100">
+                创建故事
+              </h2>
+              <p className="max-w-sm text-sm leading-6 text-parchment-300">
+                从题材、开场、人物关系和世界观开始，由 AI 生成可游玩的 Story Bible。
+              </p>
+              <div className="mt-auto flex items-center gap-2 pt-6 text-sm text-amber-200/90 transition-transform duration-200 group-hover:translate-x-1">
+                <span className="font-medium">开始构建</span>
+                <span aria-hidden="true">→</span>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={handleQuickDemo}
+            className="panel interactive-card group relative min-h-[240px] overflow-hidden border-cyan-400/25 bg-gradient-to-br from-midnight-800/90 via-midnight-800/80 to-midnight-900/92 text-left"
+          >
+            <span className="absolute -left-6 top-8 h-28 w-28 rounded-full bg-cyan-400/10 blur-2xl transition-transform duration-300 group-hover:scale-125" />
+            <span className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-cyan-400/8 to-transparent" />
+            <div className="relative flex h-full flex-col">
+              <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-300/25 bg-cyan-500/10 text-2xl text-cyan-100 shadow-[0_10px_30px_rgba(34,211,238,0.12)] transition-transform duration-200 group-hover:scale-105">
+                ▶
+              </span>
+              <div className="mb-5 inline-flex w-fit rounded-full border border-cyan-300/25 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-100/90">
+                一键体验
+              </div>
+              <h2 className="section-title mb-3 text-2xl transition-colors group-hover:text-cyan-100">
+                Demo 故事
+              </h2>
+              <p className="max-w-sm text-sm leading-6 text-parchment-300">
+                直接进入一段多角色推理故事，快速体验 GM 叙事、线索与多结局流程。
+              </p>
+              <div className="mt-auto flex items-center gap-2 pt-6 text-sm text-cyan-100/90 transition-transform duration-200 group-hover:translate-x-1">
+                <span className="font-medium">立即试玩</span>
+                <span aria-hidden="true">→</span>
+              </div>
+            </div>
+          </button>
+
+          <div className="panel flex min-h-[240px] flex-col text-left">
+            <span className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-midnight-300/30 bg-midnight-500/25 text-2xl text-parchment-100">
+              #
+            </span>
+            <h2 className="section-title mb-3 text-2xl">加入房间</h2>
+            <p className="mb-4 text-sm leading-6 text-parchment-300">
+              输入你的名字和房间号，回到朋友已经创建好的故事。
+            </p>
+            <div className="mt-auto space-y-2">
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder="你的名字"
+                className="input-field text-sm"
+              />
+              <input
+                type="text"
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                placeholder="房间号（6位）"
+                maxLength={6}
+                className="input-field text-sm tracking-widest"
+              />
+              <button
+                onClick={handleJoinRoom}
+                disabled={!joinCode.trim() || !playerName.trim()}
+                className="btn-primary w-full text-sm"
+              >
+                加入
+              </button>
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-3 text-center md:grid-cols-4">
+          {[
+            { label: "多人角色扮演", accent: "border-amber-400/30" },
+            { label: "AI GM 叙事", accent: "border-cyan-300/30" },
+            { label: "动态规则结算", accent: "border-emerald-300/30" },
+            { label: "多重结局", accent: "border-rose-300/30" },
+          ].map((feature) => (
+            <div key={feature.label} className={`panel border ${feature.accent} px-3 py-3`}>
+              <p className="text-xs font-medium text-parchment-300">{feature.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
