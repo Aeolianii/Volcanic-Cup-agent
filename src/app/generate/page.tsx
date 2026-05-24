@@ -20,11 +20,11 @@ function GeneratePageContent() {
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demo") === "true";
 
-  const [storyIdea, setStoryIdea] = useState("");
   const [genre, setGenre] = useState("");
   const [opening, setOpening] = useState("");
   const [ending, setEnding] = useState("");
   const [characters, setCharacters] = useState("");
+  const [characterDetails, setCharacterDetails] = useState("");
   const [worldSetting, setWorldSetting] = useState("");
   const [loading, setLoading] = useState(false);
   const [bible, setBible] = useState<StoryBible | null>(null);
@@ -46,15 +46,20 @@ function GeneratePageContent() {
         return;
       }
 
+      const combinedCharacters = [
+        characters ? `人物：${characters}` : "",
+        characterDetails ? `人物性格和人物间关系：${characterDetails}` : "",
+      ].filter(Boolean).join("\n");
+
       const res = await fetch("/api/stories/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          story_idea: storyIdea,
+          story_idea: [genre, opening, ending, combinedCharacters, worldSetting].filter(Boolean).join("\n"),
           genre,
           opening,
           ending,
-          characters,
+          characters: combinedCharacters,
           world_setting: worldSetting,
         }),
       });
@@ -242,22 +247,12 @@ function GeneratePageContent() {
 
       <div className="panel space-y-4">
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">故事创意</label>
-          <textarea
-            value={storyIdea}
-            onChange={(e) => setStoryIdea(e.target.value)}
-            placeholder="可以直接写一整段创意，例如：校园言情、搞笑整活、推理悬疑、权谋阵营等。AI 会结合本地规则分析可玩性并自动选择模块。"
-            className="input-field h-28 resize-none"
-          />
-        </div>
-
-        <div>
           <label className="text-sm text-parchant-300 mb-1 block">题材</label>
           <input
             type="text"
             value={genre}
             onChange={(e) => setGenre(e.target.value)}
-            placeholder="可选，例如：校园言情、搞笑、推理、权谋"
+            placeholder="例如：民宿悬疑、校园言情、搞笑、推理、权谋、恐怖"
             className="input-field"
           />
         </div>
@@ -267,8 +262,8 @@ function GeneratePageContent() {
           <textarea
             value={opening}
             onChange={(e) => setOpening(e.target.value)}
-            placeholder="描述故事的开场..."
-            className="input-field h-20 resize-none"
+            placeholder="写出故事开始时发生了什么。越详细，生成的剧本会越精彩。"
+            className="input-field h-24 resize-none"
           />
         </div>
 
@@ -277,29 +272,38 @@ function GeneratePageContent() {
           <textarea
             value={ending}
             onChange={(e) => setEnding(e.target.value)}
-            placeholder="你希望的结局方向..."
+            placeholder="写出你希望故事最终走向哪里。越详细，生成的剧本会越精彩。"
+            className="input-field h-24 resize-none"
+          />
+        </div>
+
+        <div>
+          <label className="text-sm text-parchant-300 mb-1 block">人物</label>
+          <textarea
+            value={characters}
+            onChange={(e) => setCharacters(e.target.value)}
+            placeholder="填写主要人物或玩家角色，例如：林晚、民宿老板、失踪者妹妹、前记者"
             className="input-field h-20 resize-none"
           />
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">角色（逗号分隔）</label>
-          <input
-            type="text"
-            value={characters}
-            onChange={(e) => setCharacters(e.target.value)}
-            placeholder="王子, 圣女, 刺客, 骑士"
-            className="input-field"
+          <label className="text-sm text-parchant-300 mb-1 block">人物性格和人物间关系（选填）</label>
+          <textarea
+            value={characterDetails}
+            onChange={(e) => setCharacterDetails(e.target.value)}
+            placeholder="可填写人物性格、隐藏关系、矛盾、旧怨、阵营关系等；不填也可以生成。"
+            className="input-field h-24 resize-none"
           />
         </div>
 
         <div>
-          <label className="text-sm text-parchant-300 mb-1 block">世界观设定</label>
+          <label className="text-sm text-parchant-300 mb-1 block">世界观</label>
           <textarea
             value={worldSetting}
             onChange={(e) => setWorldSetting(e.target.value)}
-            placeholder="描述故事的世界观..."
-            className="input-field h-20 resize-none"
+            placeholder="描述故事发生的地点、时代、规则、氛围或特殊设定。"
+            className="input-field h-24 resize-none"
           />
         </div>
 
@@ -311,7 +315,7 @@ function GeneratePageContent() {
 
         <button
           onClick={handleGenerate}
-          disabled={loading || (!isDemo && !storyIdea && !genre && !opening && !worldSetting)}
+          disabled={loading || (!isDemo && !genre && !opening && !ending && !characters && !worldSetting)}
           className="btn-primary w-full py-3"
         >
           {loading ? "生成中..." : "生成 Story Bible"}
