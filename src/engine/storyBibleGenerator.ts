@@ -36,18 +36,21 @@ export async function generateStoryBible(seed: StorySeed): Promise<StoryBible> {
       magic_system: isSupernatural(seed) ? "依照当前设定运行的特殊力量规则" : undefined,
       technology_level: extractTechnologyLevel(seed),
     },
-    roles: characters.map((name, index) => ({
-      id: `role_${index + 1}`,
-      name,
-      type: "player_role" as const,
-      public_identity: buildPublicIdentity(name, seed),
-      private_background: buildPrivateBackground(name, seed),
-      public_goal: buildPublicGoal(name, seed, adapted.additions.role_goals[index]),
-      secret_goal: buildSecretGoal(name, seed, adapted.additions.secret_goals[index]),
-      starting_location: getStartingLocation(seed, index),
-      initial_knowledge: buildInitialKnowledge(name, seed),
-      abilities: buildAbilities(name, seed, index),
-    })),
+    roles: characters.map((name, index) => {
+      const detail = extractCharacterDetail(name, seed.character_details || "");
+      return {
+        id: `role_${index + 1}`,
+        name,
+        type: "player_role" as const,
+        public_identity: buildPublicIdentity(name, seed, detail),
+        private_background: buildPrivateBackground(name, seed, detail),
+        public_goal: buildPublicGoal(name, seed, adapted.additions.role_goals[index], detail),
+        secret_goal: buildSecretGoal(name, seed, adapted.additions.secret_goals[index], detail),
+        starting_location: getStartingLocation(seed, index),
+        initial_knowledge: buildInitialKnowledge(name, seed),
+        abilities: buildAbilities(name, seed, index),
+      };
+    }),
     npcs: generateNPCs(seed),
     factions: buildFactions(seed, characters),
     character_models: [],
@@ -77,6 +80,61 @@ export async function generateStoryBible(seed: StorySeed): Promise<StoryBible> {
   bible.ui_config = generateUIConfig(bible);
 
   return enrichStoryBibleForSimulation(bible, seed);
+}
+
+function extractCharacterDetail(name: string, details: string): string {
+  if (!details.trim()) return "";
+  const lines = details
+    .split(/[\n；;]+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const direct = lines.find((line) => line.startsWith(`${name}：`) || line.startsWith(`${name}:`));
+  if (direct) return direct.replace(new RegExp(`^${escapeRegExp(name)}[：:]\\s*`), "").trim();
+
+  const mention = lines.find((line) => line.includes(name));
+  return mention || "";
+}
+
+function extractFieldFromDetail(detail: string, labels: string[]): string {
+  if (!detail) return "";
+  for (const label of labels) {
+    const pattern = new RegExp(`${label}[：:是为]?\\s*([^。；;\\n]+)`);
+    const match = detail.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return "";
+}
+
+function inferIdentityFromName(name: string, seed: StorySeed, detail = ""): string {
+  const text = `${name} ${detail}`;
+  const directIdentity = extractFieldFromDetail(detail, ["公开身份", "身份", "职业", "表面身份"]);
+  if (directIdentity) return `${name}，${shortText(directIdentity, 28)}`;
+
+  const patterns: Array<[RegExp, string]> = [
+    [/失踪者妹妹|妹妹/, "执意追查失踪真相的亲属"],
+    [/继承人/, "背负家族资产与旧债的继承人"],
+    [/退休刑警|刑警|侦探|调查员|记者/, "擅长追查线索的调查者"],
+    [/摄影师|画家|作家|插画师/, "用创作记录异常细节的观察者"],
+    [/老板|店主|馆主|经理/, "掌握场所秘密与经营压力的负责人"],
+    [/常客|住客|客人|旅客/, "熟悉现场却隐瞒来意的滞留者"],
+    [/医生|护士|法医/, "能判断伤情与时间线的专业人士"],
+    [/律师|顾问|地产|商人/, "擅长谈判并牵涉利益交换的人"],
+    [/学生|班长|社长/, "处在校园关系网中心的学生"],
+  ];
+  for (const [pattern, identity] of patterns) {
+    if (pattern.test(text)) return `${name}，${identity}`;
+  }
+
+  const profile = getProfile(seed);
+  if (profile === "mystery") return `${name}，掌握部分线索且有私人隐瞒的嫌疑人之一`;
+  if (profile === "horror") return `${name}，在危险环境中寻找生路的幸存者`;
+  if (profile === "political") return `${name}，牵涉权力交换与秘密承诺的行动者`;
+  return `${name}，与开场事件存在明确私人关联的行动者`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function parseCharacters(input: string): string[] {
@@ -138,7 +196,8 @@ function extractLocation(setting: string): string {
   return match ? match[1] : shortText(setting || "故事舞台", 12);
 }
 
-function buildPublicIdentity(name: string, seed: StorySeed): string {
+function buildPublicIdentity(name: string, seed: StorySeed, detail = ""): string {
+  if (detail) return inferIdentityFromName(name, seed, detail);
   const profile = getProfile(seed);
   if (profile === "campus") {
     if (/转校|新生/.test(name)) return `${name}，刚进入这段校园关系网的新面孔`;
@@ -154,7 +213,19 @@ function buildPublicIdentity(name: string, seed: StorySeed): string {
   return `${name}，卷入核心冲突的重要人物`;
 }
 
-function buildPrivateBackground(name: string, seed: StorySeed): string {
+function buildPrivateBackground(name: string, seed: StorySeed, detail = ""): string {
+  if (detail) {
+    const secret = extractFieldFromDetail(detail, ["秘密目标", "秘密目的", "隐藏动机", "秘密"]);
+    const personality = extractFieldFromDetail(detail, ["性格", "人物性格"]);
+    const relation = extractFieldFromDetail(detail, ["关系", "人物关系", "冲突"]);
+    const pieces = [
+      personality ? `你${personality}` : "",
+      relation ? `你与其他人存在这层关系：${relation}` : "",
+      secret ? `你暂时不想公开的是：${secret}` : "",
+    ].filter(Boolean);
+    if (pieces.length > 0) return pieces.join("；") + "。";
+    return shortText(detail, 90);
+  }
   const profile = getProfile(seed);
   const hook = seed.opening || seed.world_setting || "开场事件";
   if (profile === "campus") {
@@ -170,7 +241,9 @@ function buildPrivateBackground(name: string, seed: StorySeed): string {
   return `你与“${shortText(hook, 24)}”有私人关联，这段关联暂时不宜公开。`;
 }
 
-function buildPublicGoal(name: string, seed: StorySeed, suggested?: string): string {
+function buildPublicGoal(name: string, seed: StorySeed, suggested?: string, detail = ""): string {
+  const detailGoal = extractFieldFromDetail(detail, ["公开目标", "公开目的", "表面目标"]);
+  if (isValidGoal(detailGoal)) return detailGoal;
   if (suggested && isValidGoal(suggested)) return suggested;
   const profile = getProfile(seed);
   
@@ -206,7 +279,9 @@ function buildPublicGoal(name: string, seed: StorySeed, suggested?: string): str
   return genericGoals[Math.floor(Math.random() * genericGoals.length)];
 }
 
-function buildSecretGoal(name: string, seed: StorySeed, suggested?: string): string {
+function buildSecretGoal(name: string, seed: StorySeed, suggested?: string, detail = ""): string {
+  const detailGoal = extractFieldFromDetail(detail, ["秘密目标", "秘密目的", "隐藏动机", "真实目标"]);
+  if (isValidGoal(detailGoal)) return detailGoal;
   if (suggested && isValidGoal(suggested)) return suggested;
   const profile = getProfile(seed);
   if (profile === "campus") {
