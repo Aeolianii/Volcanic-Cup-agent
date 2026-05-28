@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { ChatChannel, ChatMessage } from "@/types";
 
 interface ChatPanelProps {
@@ -23,10 +23,9 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [activeChannelId, setActiveChannelId] = useState("public");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const visibleChannels =
-    channels.length > 0
-      ? channels
-      : [{ id: "public", type: "public" as const, label: "公共频道", member_ids: [], pinned: true, unread_count: 0, unlocked: true }];
+  const visibleChannels = channels.length > 0
+    ? channels
+    : [{ id: "public", type: "public" as const, label: "公共频道", member_ids: [], pinned: true, unread_count: 0, unlocked: true }];
   const activeChannel = visibleChannels.find((channel) => channel.id === activeChannelId) || visibleChannels[0];
   const visibleMessages = messages.filter((message) => (message.channel_id || "public") === activeChannel.id);
 
@@ -34,7 +33,7 @@ export function ChatPanel({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [activeChannel.id, visibleMessages.length]);
+  }, [visibleMessages.length, activeChannel.id]);
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -50,74 +49,69 @@ export function ChatPanel({
   };
 
   return (
-    <div className="panel flex min-h-[360px] flex-col">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div>
-          <h3 className="section-title text-base">通讯频道</h3>
-          <p className="mt-1 text-xs text-parchment-500">公共讨论、阵营频道和私聊会集中显示在这里。</p>
-        </div>
+    <div className="panel flex flex-col h-full max-h-[420px]">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h3 className="font-fantasy text-amber-400 text-sm">通讯频道</h3>
         {activeChannel.pinned && (
-          <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-200">
-            置顶
-          </span>
+          <span className="badge-amber text-[10px]">置顶</span>
         )}
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1 mb-3">
         {visibleChannels.map((channel) => (
           <button
             key={channel.id}
             type="button"
             onClick={() => setActiveChannelId(channel.id)}
-            className={`rounded border px-2.5 py-1 text-xs transition-all duration-200 hover:-translate-y-0.5 ${
+            className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
               activeChannel.id === channel.id
-                ? "border-amber-500 bg-amber-500/15 text-amber-100"
-                : "border-midnight-500 bg-midnight-900/30 text-parchment-400 hover:border-amber-500/50 hover:text-parchment-100"
+                ? "border-amber-600/50 bg-amber-900/20 text-amber-200"
+                : "border-midnight-600/50 bg-midnight-800/30 text-parchment-500 hover:border-midnight-500 hover:text-parchment-300"
             }`}
           >
             {channel.label}
-            {channel.unread_count > 0 && <span className="ml-1 text-amber-300">●</span>}
+            {channel.unread_count > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 text-[10px]">
+                {channel.unread_count}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      <div
-        ref={scrollRef}
-        className="mb-3 min-h-[190px] flex-1 space-y-3 overflow-y-auto rounded border border-midnight-500/60 bg-midnight-950/25 p-3"
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-2 mb-3 min-h-[150px] pr-1">
         {visibleMessages.length === 0 && (
-          <p className="text-sm italic text-parchment-500">当前频道暂无消息。</p>
+          <p className="text-parchment-600 text-sm italic text-center py-4">当前频道暂无消息。</p>
         )}
         {visibleMessages.map((message) => {
           const isOwn = message.sender_id === currentPlayerId;
           const isGM = message.sender_type === "gm";
-          const senderLabel = isGM ? "游戏主持" : message.sender_name;
+          const senderLabel = isGM ? "GM" : message.sender_name;
 
           return (
-            <div key={message.id} className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
+            <div key={message.id} className={`flex flex-col ${isOwn ? "items-end" : "items-start"} animate-in`}>
               {!isOwn && (
-                <span translate="no" className={`mb-1 text-xs ${isGM ? "text-amber-300" : "text-cyan-300"}`}>
+                <span className={`text-[11px] mb-0.5 px-1 ${isGM ? "text-amber-400" : "text-blue-400"}`}>
                   {senderLabel}
                 </span>
               )}
               <div
-                className={`max-w-[86%] rounded px-3 py-2 text-sm leading-6 shadow-sm ${
+                className={`max-w-[85%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
                   isGM
-                    ? "border border-amber-600/50 bg-amber-500/10 text-amber-100"
+                    ? "bg-amber-900/20 border border-amber-700/30 text-amber-100"
                     : message.highlighted
-                      ? "border border-amber-500/60 bg-amber-500/10 text-amber-100"
-                      : isOwn
-                        ? "border border-cyan-600/50 bg-cyan-950/40 text-parchment-100"
-                        : "border border-midnight-500 bg-midnight-700/60 text-parchment-200"
+                    ? "bg-amber-900/15 border border-amber-600/30 text-amber-100"
+                    : isOwn
+                    ? "bg-blue-900/20 border border-blue-700/30 text-parchment-100"
+                    : "bg-midnight-800/50 border border-midnight-600/30 text-parchment-200"
                 }`}
               >
                 {message.content}
               </div>
               {message.is_action_hint && onConvertToAction && (
                 <button
-                  type="button"
                   onClick={() => onConvertToAction(message.id)}
-                  className="mt-1 text-xs text-amber-400 underline-offset-2 transition-colors hover:text-amber-200 hover:underline"
+                  className="text-xs text-amber-500 hover:text-amber-300 mt-1 underline underline-offset-2 transition-colors"
                 >
                   {actionHint?.suggestion || "转为正式行动"}
                 </button>
@@ -125,12 +119,6 @@ export function ChatPanel({
             </div>
           );
         })}
-
-        {actionHint && (
-          <div className="rounded border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-amber-200">
-            {actionHint.suggestion}
-          </div>
-        )}
       </div>
 
       <div className="flex gap-2">
@@ -140,9 +128,9 @@ export function ChatPanel({
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="输入 RP 对话..."
-          className="input-field flex-1 text-sm"
+          className="input-field text-sm flex-1"
         />
-        <button onClick={handleSend} className="btn-primary px-4 text-sm">
+        <button onClick={handleSend} className="btn-primary text-sm px-4">
           发送
         </button>
       </div>

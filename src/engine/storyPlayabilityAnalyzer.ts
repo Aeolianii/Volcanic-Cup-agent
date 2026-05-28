@@ -6,6 +6,7 @@ import type {
   StorySeed,
 } from "@/types";
 import { analyzeStory, type StoryAnalysis } from "./storyAnalyzer";
+import { getRuntimeLLMConfig } from "@/lib/runtimeConfig";
 
 export interface LLMPlayabilityAnalysis {
   playable_score?: number;
@@ -268,6 +269,15 @@ function parseJSON<T>(content: string, fallback: T): T {
 }
 
 function getConfig() {
+  const runtime = getRuntimeLLMConfig();
+  if (runtime) {
+    return {
+      apiKey: runtime.apiKey,
+      baseUrl: runtime.baseUrl,
+      model: runtime.model,
+    };
+  }
+
   return {
     apiKey:
       process.env.DEEPSEEK_API_KEY ||

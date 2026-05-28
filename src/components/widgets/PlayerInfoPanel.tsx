@@ -8,62 +8,26 @@ interface PlayerInfoPanelProps {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  investigate: "调查",
-  search: "搜索",
-  track: "追踪",
-  eavesdrop: "偷听",
-  interrogate: "盘问",
-  decode: "解读",
-  talk: "交谈",
-  persuade: "说服",
-  threaten: "威胁",
-  deceive: "欺骗",
-  ally: "结盟",
-  betray: "背叛",
-  confess: "坦白",
-  command: "下令",
-  summon_meeting: "召集会议",
-  gain_support: "争取支持",
-  coup: "夺权",
-  impeach: "弹劾",
-  appoint: "任命",
-  attack: "攻击",
-  assassinate: "刺杀",
-  duel: "决斗",
-  ambush: "伏击",
-  defend: "防守",
-  buy: "收买",
-  trade: "交易",
-  steal: "偷取",
-  transport: "转移",
-  build: "建造",
+  investigate: "调查", search: "搜索", track: "追踪", eavesdrop: "偷听",
+  interrogate: "盘问", decode: "解读", talk: "交谈", persuade: "说服",
+  threaten: "威胁", deceive: "欺骗", ally: "结盟", betray: "背叛",
+  confess: "坦白", command: "下令", summon_meeting: "召集会议",
+  gain_support: "争取支持", coup: "夺权", impeach: "弹劾", appoint: "任命",
+  attack: "攻击", assassinate: "刺杀", duel: "决斗", ambush: "伏击",
+  defend: "防守", buy: "收买", trade: "交易", steal: "偷取",
+  transport: "转移", build: "建造",
 };
 
 const TARGET_LABELS: Record<string, string> = {
-  temple: "圣殿",
-  temple_altar: "圣坛",
-  cathedral_basement: "教堂地下室",
-  underground_altar: "地下祭坛",
-  throne_room: "王座大厅",
-  royal_library: "皇家图书馆",
-  city_streets: "王城街道",
-  tavern: "乌鸦酒馆",
-  surroundings: "周围环境",
-  current_location: "当前位置",
-  connected_location: "相关地点",
-  current_event: "当前事件",
-  informed_npc: "知情者",
-  witness: "证人",
-  self_goal: "个人目标",
-  npc_archmage: "大法师",
-  npc_old_king: "老国王",
-  npc_bishop: "主教",
-  archmage: "大法师",
-  old_king: "老国王",
-  bishop: "主教",
-  guard: "守卫",
-  all: "所有人",
-  all_players: "所有玩家",
+  temple: "圣殿", temple_altar: "圣坛", cathedral_basement: "教堂地下室",
+  underground_altar: "地下祭坛", throne_room: "王座大厅",
+  royal_library: "皇家图书馆", city_streets: "王城街道", tavern: "乌鸦酒馆",
+  surroundings: "周围环境", current_location: "当前位置",
+  connected_location: "相关地点", current_event: "当前事件",
+  informed_npc: "知情者", witness: "证人", self_goal: "个人目标",
+  npc_archmage: "大法师", npc_old_king: "老国王", npc_bishop: "主教",
+  archmage: "大法师", old_king: "老国王", bishop: "主教",
+  guard: "守卫", all: "所有人", all_players: "所有玩家",
 };
 
 function formatFact(fact: string): string {
@@ -105,7 +69,7 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
     return (
       <div className="panel">
         <h3 className="font-fantasy text-amber-400 text-sm mb-2">玩家情报</h3>
-        <p className="text-parchment-500 text-sm">暂无情报</p>
+        <p className="text-parchment-600 text-sm">暂无情报</p>
       </div>
     );
   }
@@ -115,20 +79,17 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
 
   return (
     <div className="panel">
-      <h3 className="font-fantasy text-amber-400 text-sm mb-3">玩家情报</h3>
+      <h3 className="font-fantasy text-amber-400 text-sm mb-4">玩家情报</h3>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {playerView.known_npcs.length > 0 && (
           <div>
-            <h4 className="text-xs text-amber-500/80 uppercase tracking-wider mb-1">
+            <h4 className="text-[11px] text-amber-500/80 uppercase tracking-wider mb-2">
               已知 NPC ({playerView.known_npcs.length})
             </h4>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {playerView.known_npcs.map((npc) => (
-                <span
-                  key={npc}
-                  className="text-xs bg-midnight-700 px-1.5 py-0.5 rounded text-parchment-400"
-                >
+                <span key={npc} className="badge-blue text-[11px]">
                   {npc}
                 </span>
               ))}
@@ -138,15 +99,12 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
 
         {playerView.known_locations.length > 0 && (
           <div>
-            <h4 className="text-xs text-amber-500/80 uppercase tracking-wider mb-1">
+            <h4 className="text-[11px] text-amber-500/80 uppercase tracking-wider mb-2">
               已知地点 ({playerView.known_locations.length})
             </h4>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {playerView.known_locations.map((loc) => (
-                <span
-                  key={loc}
-                  className="text-xs bg-midnight-700 px-1.5 py-0.5 rounded text-parchment-400"
-                >
+                <span key={loc} className="badge-amber text-[11px]">
                   {formatLocation(loc)}
                 </span>
               ))}
@@ -156,31 +114,32 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
 
         {playerView.known_facts.length > 0 && (
           <div>
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <h4 className="text-xs text-amber-500/80 uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <h4 className="text-[11px] text-amber-500/80 uppercase tracking-wider">
                 已知事实 ({playerView.known_facts.length})
               </h4>
               {hiddenFactCount > 0 && (
                 <button
-                  type="button"
                   onClick={() => setFactsExpanded((value) => !value)}
-                  className="text-[11px] text-amber-400 hover:text-amber-300 underline-offset-2 hover:underline"
+                  className="text-[11px] text-amber-500 hover:text-amber-300 transition-colors"
                 >
-                  {factsExpanded ? "收起" : `展开全部 ${playerView.known_facts.length} 条`}
+                  {factsExpanded ? "收起" : `展开全部`}
                 </button>
               )}
             </div>
 
-            <ul className="text-xs text-parchment-400 list-disc list-inside">
+            <ul className="text-xs text-parchment-500 space-y-1.5">
               {facts.map((fact, index) => (
-                <li key={`${fact}_${index}`}>{formatFact(fact)}</li>
+                <li key={`${fact}_${index}`} className="flex items-start gap-2">
+                  <span className="text-amber-800 mt-0.5 shrink-0">&#x2022;</span>
+                  {formatFact(fact)}
+                </li>
               ))}
               {hiddenFactCount > 0 && !factsExpanded && (
-                <li className="list-none mt-1">
+                <li>
                   <button
-                    type="button"
                     onClick={() => setFactsExpanded(true)}
-                    className="text-parchment-500 hover:text-amber-300 underline-offset-2 hover:underline"
+                    className="text-parchment-600 hover:text-amber-300 transition-colors"
                   >
                     还有 {hiddenFactCount} 条，点击展开
                   </button>
@@ -190,7 +149,7 @@ export function PlayerInfoPanel({ playerView }: PlayerInfoPanelProps) {
           </div>
         )}
 
-        <div className="text-[10px] text-parchment-600 italic">
+        <div className="text-[10px] text-parchment-700 italic pt-1 border-t border-midnight-700/50">
           情报基于你的角色视角。其他角色可能掌握不同信息。
         </div>
       </div>

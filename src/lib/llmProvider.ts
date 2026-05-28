@@ -11,6 +11,7 @@ import type {
   StorySeed,
 } from "@/types";
 import { mockAIProvider } from "@/mock/mockAIProvider";
+import { getRuntimeLLMConfig } from "@/lib/runtimeConfig";
 
 type ChatMessage = {
   role: "system" | "user";
@@ -21,6 +22,16 @@ const DEFAULT_BASE_URL = "https://api.deepseek.com";
 const DEFAULT_MODEL = "deepseek-v4-pro";
 
 function getConfig() {
+  const runtime = getRuntimeLLMConfig();
+
+  if (runtime) {
+    return {
+      apiKey: runtime.apiKey,
+      baseUrl: runtime.baseUrl,
+      model: runtime.model,
+    };
+  }
+
   return {
     apiKey:
       process.env.DEEPSEEK_API_KEY ||

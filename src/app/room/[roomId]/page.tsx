@@ -1,20 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useState, useEffect, useCallback, useReducer } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { UIBuilder } from "@/components/ui/UIBuilder";
-import { GameContext, gameReducer, initialGameState } from "@/lib/gameStore";
-import type { ChatMessage, Room, SuggestedAction } from "@/types";
-
-type AvailableRole = {
-  id: string;
-  name: string;
-  public_identity: string;
-};
-
-type RoomWithRoles = Room & {
-  available_roles?: AvailableRole[];
-};
+import { gameReducer, initialGameState, GameContext } from "@/lib/gameStore";
+import type { Room, WorldState, PlayerView, ChatMessage, SuggestedAction } from "@/types";
 
 export default function RoomPage() {
   const params = useParams();
@@ -38,20 +28,104 @@ export default function RoomPage() {
   const [actionPending, setActionPending] = useState(false);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
-  const refreshPlayerView = useCallback(
-    async (suggestedActionsOverride?: SuggestedAction[]) => {
+  useEffect(() => {
+    const init = async () => {
       try {
-        const res = await fetch(`/api/rooms/${roomId}/players/${playerId}/view`);
+        const res = await fetch(`/api/rooms/${roomId}/state`);
         const data = await res.json();
-        if (!data.success) return;
 
+        if (!data.success) {
+          setError(data.error || "房间不存在");
+          setLoading(false);
+          return;
+        }
+
+        const room: Room = data.room;
+        if (data.story_bible) {
+          dispatch({ type: "SET_STORY_BIBLE", bible: data.story_bible });
+        }
+
+        if (!room.players.some((p: { player_id: string }) => p.player_id === playerId)) {
+          const joinRes = await fetch(`/api/rooms/${roomId}/join`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ player_id: playerId, player_name: playerName }),
+          });
+          const joinData = await joinRes.json();
+          if (joinData.success) {
+            dispatch({ type: "SET_ROOM", room: joinData.room });
+          } else {
+            setError("加入房间失败");
+            setLoading(false);
+            return;
+          }
+        } else {
+          dispatch({ type: "SET_ROOM", room });
+        }
+
+        if (data.world_state) {
+          dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
+          dispatch({ type: "SET_PHASE", phase: "playing" });
+        }
+
+        dispatch({ type: "SET_CURRENT_PLAYER", playerId });
+        setLoading(false);
+      } catch {
+        setError("网络错误");
+        setLoading(false);
+      }
+    };
+
+    init();
+    localStorage.setItem("player_id", playerId);
+  }, [roomId, playerId, playerName]);
+
+  const handleSelectRole = async (roleId: string) => {
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/select-role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ player_id: playerId, role_id: roleId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        dispatch({ type: "SET_ROOM", room: data.room });
+      }
+    } catch {
+      setError("选择角色失败");
+    }
+  };
+
+  const handleStartStory = async () => {
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/start`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.success) {
+        dispatch({ type: "SET_ROOM", room: data.room });
+        if (data.world_state) {
+          dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
+        }
+        dispatch({ type: "SET_PHASE", phase: "playing" });
+        await refreshPlayerView();
+      }
+    } catch {
+      setError("开始故事失败");
+    }
+  };
+
+  const refreshPlayerView = async (suggestedActionsOverride?: SuggestedAction[]) => {
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/players/${playerId}/view`);
+      const data = await res.json();
+      if (data.success) {
         dispatch({
           type: "SET_PLAYER_VIEW",
           view: suggestedActionsOverride
             ? { ...data.player_view, suggested_actions: suggestedActionsOverride }
             : data.player_view,
         });
-
         if (state.chatMessages.length === 0) {
           const openingContent =
             data.gm_narrative?.narration || data.player_view?.active_events?.[0]?.description || "";
@@ -73,108 +147,19 @@ export default function RoomPage() {
             });
           }
         }
-      } catch {
-        // Player view refresh is retried by later interactions.
-      }
-    },
-    [playerId, roomId, state.chatMessages.length]
-  );
-
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const res = await fetch(`/api/rooms/${roomId}/state`);
-        const data = await res.json();
-
-        if (!data.success) {
-          setError(data.error || "房间不存在。");
-          setLoading(false);
-          return;
-        }
-
-        const room: Room = data.room;
-        if (data.story_bible) {
-          dispatch({ type: "SET_STORY_BIBLE", bible: data.story_bible });
-        }
-
-        if (!room.players.some((player) => player.player_id === playerId)) {
-          const joinRes = await fetch(`/api/rooms/${roomId}/join`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ player_id: playerId, player_name: playerName }),
-          });
-          const joinData = await joinRes.json();
-          if (joinData.success) {
-            dispatch({ type: "SET_ROOM", room: joinData.room });
-          } else {
-            setError("加入房间失败。");
-            setLoading(false);
-            return;
-          }
-        } else {
-          dispatch({ type: "SET_ROOM", room });
-        }
-
-        if (data.world_state) {
-          dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
-          dispatch({ type: "SET_PHASE", phase: "playing" });
-        }
-
-        dispatch({ type: "SET_CURRENT_PLAYER", playerId });
-        setLoading(false);
-      } catch {
-        setError("网络错误，请稍后重试。");
-        setLoading(false);
-      }
-    };
-
-    init();
-    localStorage.setItem("player_id", playerId);
-  }, [playerId, playerName, roomId]);
-
-  const handleSelectRole = async (roleId: string) => {
-    try {
-      const res = await fetch(`/api/rooms/${roomId}/select-role`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player_id: playerId, role_id: roleId }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        dispatch({ type: "SET_ROOM", room: data.room });
       }
     } catch {
-      setError("选择角色失败。");
+      // Silently fail
     }
   };
 
-  const handleStartStory = async () => {
-    try {
-      const res = await fetch(`/api/rooms/${roomId}/start`, { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        dispatch({ type: "SET_ROOM", room: data.room });
-        if (data.world_state) {
-          dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
-        }
-        dispatch({ type: "SET_PHASE", phase: "playing" });
-        await refreshPlayerView();
-      }
-    } catch {
-      setError("开始故事失败。");
-    }
-  };
-
-  const replaceSuggestedActions = useCallback(
-    (actions: SuggestedAction[]) => {
-      if (!state.playerView) return;
-      dispatch({
-        type: "SET_PLAYER_VIEW",
-        view: { ...state.playerView, suggested_actions: actions },
-      });
-    },
-    [state.playerView]
-  );
+  const replaceSuggestedActions = useCallback((actions: SuggestedAction[]) => {
+    if (!state.playerView) return;
+    dispatch({
+      type: "SET_PLAYER_VIEW",
+      view: { ...state.playerView, suggested_actions: actions },
+    });
+  }, [state.playerView]);
 
   const handleSendMessage = useCallback(
     async (content: string, channelId = "public") => {
@@ -202,10 +187,10 @@ export default function RoomPage() {
           setActionFeedback(data.action_hint.suggestion);
         }
       } catch {
-        // Message is already shown optimistically.
+        // Sent optimistically
       }
     },
-    [playerId, playerName, roomId]
+    [roomId, playerId, playerName]
   );
 
   const handleSendAction = useCallback(
@@ -215,8 +200,7 @@ export default function RoomPage() {
       const previousActions = state.playerView?.suggested_actions || [];
       setActionPending(true);
       setPendingActionId("free_action");
-      setActionFeedback(`已提交行动：“${actionText}”。正在解析与结算...`);
-
+      setActionFeedback(`已提交行动："${actionText}"。正在解析与结算...`);
       try {
         const res = await fetch(`/api/rooms/${roomId}/actions`, {
           method: "POST",
@@ -230,36 +214,30 @@ export default function RoomPage() {
         });
         const data = await res.json();
 
-        if (!data.success) {
+        if (data.success) {
+          if (data.gm_message) {
+            dispatch({ type: "ADD_CHAT_MESSAGE", message: data.gm_message });
+          }
+          if (data.world_state) {
+            dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
+          }
+          const nextSuggestedActions = normalizeSuggestedActions(data.suggested_actions);
+          replaceSuggestedActions(nextSuggestedActions);
+
+          const gmStatusText = formatGMProviderStatus(data.gm_provider_status);
+          setActionFeedback(gmStatusText || "行动已结算，结果已写入 GM 叙事。");
+
+          if (data.ending) {
+            dispatch({ type: "SET_PHASE", phase: "ending" });
+            router.push(`/ending/${roomId}?ending_id=${data.ending.id}`);
+            return;
+          }
+
+          await refreshPlayerView(nextSuggestedActions);
+        } else {
           replaceSuggestedActions(previousActions);
-          setActionFeedback(`行动失败：${data.error || "未知错误"}`);
-          return;
+          setActionFeedback("行动失败：" + (data.error || "未知错误"));
         }
-
-        setActionFeedback(
-          data.rule_result?.public_result
-            ? `${data.rule_result.public_result} GM 正在续写下一段...`
-            : "行动已结算，GM 正在续写下一段..."
-        );
-
-        if (data.gm_message) {
-          dispatch({ type: "ADD_CHAT_MESSAGE", message: data.gm_message });
-        }
-        if (data.world_state) {
-          dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
-        }
-
-        const nextSuggestedActions = normalizeSuggestedActions(data.suggested_actions);
-        replaceSuggestedActions(nextSuggestedActions);
-        setActionFeedback(formatGMProviderStatus(data.gm_provider_status) || "行动已结算，结果已写入 GM 叙事。");
-
-        if (data.ending) {
-          dispatch({ type: "SET_PHASE", phase: "ending" });
-          router.push(`/ending/${roomId}?ending_id=${data.ending.id}`);
-          return;
-        }
-
-        await refreshPlayerView(nextSuggestedActions);
       } catch {
         replaceSuggestedActions(previousActions);
         setActionFeedback("网络错误，行动没有成功提交。");
@@ -268,19 +246,27 @@ export default function RoomPage() {
         setPendingActionId(null);
       }
     },
-    [actionPending, playerId, refreshPlayerView, replaceSuggestedActions, roomId, router, state.playerView]
+    [actionPending, roomId, playerId, state.playerView, replaceSuggestedActions]
   );
 
   const handleSelectSuggestedAction = useCallback(
-    async (action: SuggestedAction) => {
+    async (action: {
+      id: string;
+      label: string;
+      action_type: string;
+      target: string;
+      method: string;
+      intent: string;
+      risk_level: "low" | "medium" | "high";
+      context: string;
+    }) => {
       if (actionPending) return;
 
       const previousActions = state.playerView?.suggested_actions || [];
       replaceSuggestedActions(previousActions.filter((item) => item.id !== action.id));
       setActionPending(true);
       setPendingActionId(action.id);
-      setActionFeedback(`已选择推荐行动：“${action.label}”。正在结算...`);
-
+      setActionFeedback(`已选择推荐行动："${action.label}"。正在结算...`);
       try {
         const res = await fetch(`/api/rooms/${roomId}/actions`, {
           method: "POST",
@@ -300,36 +286,29 @@ export default function RoomPage() {
         });
         const data = await res.json();
 
-        if (!data.success) {
+        if (data.success) {
+          if (data.gm_message) {
+            dispatch({ type: "ADD_CHAT_MESSAGE", message: data.gm_message });
+          }
+          if (data.world_state) {
+            dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
+          }
+          const nextSuggestedActions = normalizeSuggestedActions(data.suggested_actions);
+          replaceSuggestedActions(nextSuggestedActions);
+          const gmStatusText = formatGMProviderStatus(data.gm_provider_status);
+          setActionFeedback(gmStatusText || "行动已结算，结果已写入 GM 叙事。");
+
+          if (data.ending) {
+            dispatch({ type: "SET_PHASE", phase: "ending" });
+            router.push(`/ending/${roomId}?ending_id=${data.ending.id}`);
+            return;
+          }
+
+          await refreshPlayerView(nextSuggestedActions);
+        } else {
           replaceSuggestedActions(previousActions);
-          setActionFeedback(`行动失败：${data.error || "未知错误"}`);
-          return;
+          setActionFeedback("行动失败：" + (data.error || "未知错误"));
         }
-
-        setActionFeedback(
-          data.rule_result?.public_result
-            ? `${data.rule_result.public_result} GM 正在续写下一段...`
-            : "行动已结算，GM 正在续写下一段..."
-        );
-
-        if (data.gm_message) {
-          dispatch({ type: "ADD_CHAT_MESSAGE", message: data.gm_message });
-        }
-        if (data.world_state) {
-          dispatch({ type: "SET_WORLD_STATE", state: data.world_state });
-        }
-
-        const nextSuggestedActions = normalizeSuggestedActions(data.suggested_actions);
-        replaceSuggestedActions(nextSuggestedActions);
-        setActionFeedback(formatGMProviderStatus(data.gm_provider_status) || "行动已结算，结果已写入 GM 叙事。");
-
-        if (data.ending) {
-          dispatch({ type: "SET_PHASE", phase: "ending" });
-          router.push(`/ending/${roomId}?ending_id=${data.ending.id}`);
-          return;
-        }
-
-        await refreshPlayerView(nextSuggestedActions);
       } catch {
         replaceSuggestedActions(previousActions);
         setActionFeedback("网络错误，行动没有成功提交。");
@@ -338,119 +317,163 @@ export default function RoomPage() {
         setPendingActionId(null);
       }
     },
-    [actionPending, playerId, refreshPlayerView, replaceSuggestedActions, roomId, router, state.playerView]
+    [actionPending, roomId, playerId, state.playerView, replaceSuggestedActions]
   );
 
   const handleConvertToAction = useCallback(
     (messageId: string) => {
-      const msg = state.chatMessages.find((message) => message.id === messageId);
+      const msg = state.chatMessages.find((m) => m.id === messageId);
       if (msg) {
         handleSendAction(msg.content);
       }
     },
-    [handleSendAction, state.chatMessages]
+    [state.chatMessages, handleSendAction]
   );
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-lg text-parchment-500">加载中...</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="w-12 h-12 rounded-full border-2 border-amber-600/30 border-t-amber-400 animate-spin" />
+        <p className="text-parchment-500 text-lg">正在进入故事世界...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center">
-        <p className="mb-4 text-lg text-red-400">{error}</p>
-        <button onClick={() => router.push("/")} className="btn-primary">
-          返回首页
-        </button>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in">
+        <div className="panel-glow text-center max-w-md">
+          <div className="w-16 h-16 rounded-full bg-rose-900/20 border border-rose-700/30 flex items-center justify-center mx-auto mb-4">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-rose-400"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          </div>
+          <p className="text-rose-300 text-lg mb-1">出错了</p>
+          <p className="text-parchment-500 mb-6">{error}</p>
+          <button onClick={() => router.push("/")} className="btn-primary w-full">
+            返回首页
+          </button>
+        </div>
       </div>
     );
   }
 
+  // ---- WAITING ROOM ----
   if (state.phase === "lobby" && state.room) {
-    const room = state.room as RoomWithRoles;
+    const room = state.room;
     const isOwner = room.owner_id === playerId;
-    const currentPlayer = room.players.find((player) => player.player_id === playerId);
-    const availableRoles = room.available_roles || [];
+    const currentPlayer = room.players.find((p) => p.player_id === playerId);
 
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
-        <div className="panel p-6 text-center">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-300/70">waiting room</p>
-          <h2 className="section-title mb-3 text-3xl">房间等待中</h2>
-          <p className="mb-2 font-mono text-4xl tracking-[0.24em] text-amber-200">{room.room_id}</p>
-          <p className="text-sm text-parchment-400">分享房间号给其他玩家</p>
-          <p className="mt-1 text-xs text-parchment-500">
-            状态：{room.status === "waiting" ? "等待玩家" : "准备开始"}
-          </p>
+      <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+        {/* Room Header */}
+        <div className="panel-glow text-center">
+          <p className="text-xs text-parchment-600 uppercase tracking-widest mb-2">房间等待中</p>
+          <h2 className="text-3xl font-bold font-mono text-amber-300 tracking-[0.3em] mb-2">{room.room_id}</h2>
+          <p className="text-parchment-500 text-sm">分享房间号给其他玩家加入</p>
+          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-midnight-800/60 border border-midnight-600/50">
+            <span className={`w-2 h-2 rounded-full ${room.players.length > 1 ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
+            <span className="text-xs text-parchment-400">
+              {room.status === "waiting" ? "等待玩家加入" : "准备开始"} &middot; {room.players.length}/{room.max_players}
+            </span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <section className="panel">
-            <h3 className="section-title mb-3 text-lg">
-              玩家 ({room.players.length}/{room.max_players})
-            </h3>
-            <div className="space-y-2">
-              {room.players.map((player) => (
-                <div
-                  key={player.player_id}
-                  className="flex items-center justify-between gap-3 rounded border border-midnight-500/60 bg-midnight-900/30 p-3"
-                >
-                  <div className="min-w-0">
-                    <span className="block truncate font-medium text-parchment-100">{player.name}</span>
-                    {player.is_owner && <span className="text-xs text-amber-300">房主</span>}
+        {/* Player List */}
+        <div className="panel">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-fantasy text-amber-400 text-sm">当前玩家</h3>
+            <span className="text-xs text-parchment-600">{room.players.length}/{room.max_players}</span>
+          </div>
+          <div className="space-y-2">
+            {room.players.map((p, i) => (
+              <div
+                key={p.player_id}
+                className="flex items-center justify-between p-3 rounded-lg bg-midnight-800/50 border border-midnight-700/40 animate-in"
+                style={{ animationDelay: `${i * 0.05}s` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-600/20 to-amber-800/10 border border-amber-700/20 flex items-center justify-center">
+                    <span className="text-sm text-amber-400 font-fantasy">
+                      {p.name.charAt(0).toUpperCase()}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-xs text-parchment-500">
-                    {player.role ? `已选：${player.role.name}` : "未选角色"}
-                  </span>
+                  <div>
+                    <span className="text-parchment-200 font-medium">{p.name}</span>
+                    {p.is_owner && (
+                      <span className="badge-amber ml-2">房主</span>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </section>
+                <span className={`text-xs ${p.role ? "text-emerald-400" : "text-parchment-600"}`}>
+                  {p.role ? p.role.name : "未选择角色"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
 
-          {!currentPlayer?.role && (
-            <section className="panel">
-              <h3 className="section-title mb-3 text-lg">选择角色</h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {availableRoles.length > 0 ? (
-                  availableRoles.map((role) => (
-                    <RoleButton
-                      key={role.id}
-                      role={role}
-                      disabled={room.players.some((player) => player.role_id === role.id)}
-                      onSelect={handleSelectRole}
-                    />
-                  ))
-                ) : (
+        {/* Role Selection */}
+        {!currentPlayer?.role && (
+          <div className="panel-glow animate-in">
+            <h3 className="font-fantasy text-amber-400 text-sm mb-4">选择你的角色</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {(room as Room & { available_roles?: { id: string; name: string; public_identity: string }[] }).available_roles?.length
+                ? (room as Room & { available_roles: { id: string; name: string; public_identity: string }[] }).available_roles.map((role: { id: string; name: string; public_identity: string }) => {
+                    const taken = room.players.some((p: { role_id: string | null }) => p.role_id === role.id);
+                    return (
+                      <button
+                        key={role.id}
+                        onClick={() => handleSelectRole(role.id)}
+                        disabled={taken}
+                        className={`p-4 rounded-xl border text-left transition-all duration-300 ${
+                          taken
+                            ? "border-midnight-700/30 bg-midnight-800/30 opacity-40 cursor-not-allowed"
+                            : "border-midnight-600/50 bg-midnight-800/40 hover:border-amber-600/50 hover:bg-midnight-800/60 hover:shadow-lg hover:shadow-amber-500/5"
+                        }`}
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-700/20 flex items-center justify-center mb-3">
+                          <span className="text-amber-400 font-fantasy text-sm">{role.name.charAt(0)}</span>
+                        </div>
+                        <span className="text-parchment-200 font-medium block mb-1">{role.name}</span>
+                        <span className="text-xs text-parchment-500">{role.public_identity}</span>
+                        {taken && (
+                          <span className="block text-xs text-amber-600 mt-2">已被选择</span>
+                        )}
+                      </button>
+                    );
+                  })
+                : (
                   <RoleSelector
                     roomId={roomId}
                     onSelect={handleSelectRole}
-                    takenRoles={room.players.filter((player) => player.role_id).map((player) => player.role_id!)}
+                    takenRoles={room.players.filter((p: { role_id: string | null }) => p.role_id).map((p: { role_id: string | null }) => p.role_id!)}
                   />
                 )}
-              </div>
-            </section>
+            </div>
+          </div>
+        )}
+
+        {/* Start / Wait */}
+        <div className="text-center">
+          {isOwner ? (
+            <button
+              onClick={handleStartStory}
+              disabled={room.players.some((p: { role_id: string | null }) => !p.role_id)}
+              className="btn-primary w-full py-4 text-lg font-fantasy tracking-wider"
+            >
+              开始故事
+            </button>
+          ) : (
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 rounded-full border-2 border-amber-600/20 border-t-amber-500 animate-spin" />
+              <p className="text-parchment-500 text-sm">等待房主开始故事...</p>
+            </div>
           )}
         </div>
-
-        {isOwner ? (
-          <button
-            onClick={handleStartStory}
-            disabled={room.players.some((player) => !player.role_id)}
-            className="btn-primary w-full py-3 text-lg disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            开始故事
-          </button>
-        ) : (
-          <p className="text-center text-sm text-parchment-500">等待房主开始故事...</p>
-        )}
       </div>
     );
   }
 
+  // ---- GAME INTERFACE ----
   if (state.phase === "playing" && state.room) {
     const bible = state.storyBible;
     const widgets = bible?.ui_config.widgets || [
@@ -467,17 +490,19 @@ export default function RoomPage() {
 
     return (
       <GameContext.Provider value={{ state, dispatch }}>
-        <div className="space-y-4">
+        <div className="animate-fade-in">
           {actionFeedback && (
-            <div className="flex items-start gap-3 rounded border border-amber-500/50 bg-midnight-800/90 p-3 text-sm text-amber-200 shadow-lg">
-              {actionPending && <span className="mt-1 h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-300" />}
-              <span className="flex-1 leading-6">{actionFeedback}</span>
+            <div className="mb-4 flex items-start gap-3 glass-strong border border-amber-700/30 rounded-xl p-4 text-sm text-amber-200 animate-in">
+              {actionPending && (
+                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+              )}
+              <span className="flex-1">{actionFeedback}</span>
               <button
                 onClick={() => setActionFeedback("")}
-                className="shrink-0 text-parchment-500 transition-colors hover:text-parchment-200 disabled:opacity-50"
+                className="text-parchment-500 hover:text-parchment-300 shrink-0 transition-colors"
                 disabled={actionPending}
               >
-                关闭
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
               </button>
             </div>
           )}
@@ -500,43 +525,19 @@ export default function RoomPage() {
   return null;
 }
 
-function RoleButton({
-  role,
-  disabled,
-  onSelect,
-}: {
-  role: AvailableRole;
-  disabled: boolean;
-  onSelect: (roleId: string) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(role.id)}
-      disabled={disabled}
-      className="interactive-card rounded-lg border border-midnight-500/70 bg-midnight-900/30 p-4 text-left disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
-    >
-      <span className="block font-medium text-parchment-100">{role.name}</span>
-      <span className="mt-1 block text-xs leading-5 text-parchment-500">{role.public_identity}</span>
-    </button>
-  );
-}
-
 function formatGMProviderStatus(status: unknown): string {
   if (!status || typeof status !== "object") return "";
 
   const data = status as Record<string, unknown>;
   const ok = data.ok === true;
-  const reason = typeof data.reason === "string" ? data.reason : "未知原因";
+  const provider = data.provider === "llm" ? "大模型" : "备用模板";
+  const reason = typeof data.reason === "string" ? data.reason : "";
   const model = typeof data.model === "string" ? data.model : "";
-  const baseUrl = typeof data.base_url === "string" ? data.base_url : "";
 
   if (ok) {
-    return `行动已结算，AI GM 已通过大模型生成本次叙事${model ? `（模型：${model}）` : ""}。`;
+    return `AI GM 已通过大模型完成叙事${model ? `（${model}）` : ""}。`;
   }
-
-  const configHint = [model ? `模型：${model}` : "", baseUrl ? `地址：${baseUrl}` : ""].filter(Boolean).join("；");
-  return `行动已结算，但 AI GM 没有成功调用大模型，已使用备用叙事。原因：${reason}${configHint ? `（${configHint}）` : ""}`;
+  return `AI GM 使用备用叙事${reason ? `，原因：${reason}` : ""}${model ? `（${model}）` : ""}。`;
 }
 
 function normalizeSuggestedActions(actions: unknown): SuggestedAction[] {
@@ -560,7 +561,11 @@ function normalizeSuggestedActions(actions: unknown): SuggestedAction[] {
 }
 
 function sanitizeSuggestedActionTarget(target: unknown): string {
-  return String(target || "current_location");
+  const raw = String(target || "current_location");
+  if (/^(current_location|connected_location|current_event|self_goal|public_situation|all_players|unknown)$/.test(raw)) {
+    return raw;
+  }
+  return raw;
 }
 
 function sanitizeSuggestedActionText(text: unknown): string {
@@ -604,34 +609,65 @@ function RoleSelector({
   onSelect: (roleId: string) => void;
   takenRoles: string[];
 }) {
-  const [roles, setRoles] = useState<AvailableRole[]>([]);
+  const [roles, setRoles] = useState<{ id: string; name: string; public_identity: string }[]>([]);
 
   useEffect(() => {
     fetch(`/api/rooms/${roomId}/state`)
-      .then((response) => response.json())
+      .then((r) => r.json())
       .then((data) => {
-        const room = data.room as RoomWithRoles | undefined;
-        if (room?.available_roles?.length) {
-          setRoles(room.available_roles);
+        if (data.room) {
+          fetch(`/api/stories/generate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ genre: "demo" }),
+          })
+            .then((r) => r.json())
+            .then((d) => {
+              if (d.story_bible?.roles) {
+                setRoles(d.story_bible.roles);
+              }
+            })
+            .catch(() => {});
         }
       })
       .catch(() => {});
   }, [roomId]);
 
   if (roles.length === 0) {
-    return <p className="col-span-full text-sm text-parchment-500">加载角色中...</p>;
+    return (
+      <div className="col-span-2 flex items-center justify-center py-8">
+        <div className="w-6 h-6 rounded-full border-2 border-amber-600/20 border-t-amber-400 animate-spin" />
+        <span className="text-parchment-500 text-sm ml-3">加载角色中...</span>
+      </div>
+    );
   }
 
   return (
     <>
-      {roles.map((role) => (
-        <RoleButton
-          key={role.id}
-          role={role}
-          disabled={takenRoles.includes(role.id)}
-          onSelect={onSelect}
-        />
-      ))}
+      {roles.map((role) => {
+        const taken = takenRoles.includes(role.id);
+        return (
+          <button
+            key={role.id}
+            onClick={() => onSelect(role.id)}
+            disabled={taken}
+            className={`p-4 rounded-xl border text-left transition-all duration-300 ${
+              taken
+                ? "border-midnight-700/30 bg-midnight-800/30 opacity-40 cursor-not-allowed"
+                : "border-midnight-600/50 bg-midnight-800/40 hover:border-amber-600/50 hover:bg-midnight-800/60 hover:shadow-lg hover:shadow-amber-500/5"
+            }`}
+          >
+            <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-700/20 flex items-center justify-center mb-3">
+              <span className="text-amber-400 font-fantasy text-sm">{role.name.charAt(0)}</span>
+            </div>
+            <span className="text-parchment-200 font-medium block mb-1">{role.name}</span>
+            <span className="text-xs text-parchment-500">{role.public_identity}</span>
+            {taken && (
+              <span className="block text-xs text-amber-600 mt-2">已被选择</span>
+            )}
+          </button>
+        );
+      })}
     </>
   );
 }
